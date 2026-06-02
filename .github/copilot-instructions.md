@@ -6,7 +6,7 @@ Use AGENTS.md at the repository root as the canonical source of long-lived agent
 
 ## Repository Focus
 
-This repository is for ESP32 peripheral firmware in the Greenhouse platform.
+This repository is for ESP32 edge firmware in the Greenhouse platform.
 
 Do not introduce control-unit UI, cloud-first assumptions, or desktop-server implementation details into firmware tasks.
 

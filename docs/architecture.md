@@ -75,6 +75,9 @@ Recommended:
 or
 - Raspberry Pi 5
 
+Bluetooth baseline for onboarding:
+- Raspberry Pi 4B includes integrated Bluetooth (BLE-capable) and is the Phase 1 onboarding baseline.
+
 Optional future support:
 - x86 mini-PC
 - industrial controller
@@ -96,6 +99,11 @@ The Main Control Unit handles:
 - OTA coordination
 - AI orchestration
 - future cloud synchronization
+
+Onboarding and provisioning responsibilities:
+- host BLE onboarding service for unprovisioned Edge Units
+- exchange WiFi credentials and bootstrap MQTT endpoint with new Edge Units
+- confirm onboarding success after first heartbeat
 
 ---
 
@@ -166,10 +174,10 @@ Responsibilities:
 
 ---
 
-# Peripheral Nodes
+# Edge Units
 
-- Peripheral nodes consist of a single MPU with a set number of peripheral slots attached. 
-- Initially, a peripheral node will be either a sensor node, or an actuator node
+- Edge Units consist of a single MPU with a set number of edge slots attached.
+- Initially, an Edge Unit will be either a sensor node, or an actuator node
 - Sensor nodes will only have sensors attached
 - Actuator nodes will only have actuators (via relays) connected
 - In the future, nodes may be configured to support a combination of sensors and actuators to support smaller installation at a lower cost.
@@ -177,6 +185,12 @@ Responsibilities:
 ## Platform
 
 - ESP32
+
+## Onboarding Channel (Phase 1)
+
+- Preferred onboarding channel: BLE
+- Wired provisioning remains optional for recovery and manufacturing workflows.
+- Edge Unit provisioning mode is only active before successful onboarding or after explicit factory reset.
 
 ---
 

@@ -1,6 +1,6 @@
-# Greenhouse Peripheral Firmware Context
+# Greenhouse Edge Firmware Context
 
-This context defines the shared domain language for ESP32 peripheral firmware in the Greenhouse platform.
+This context defines the shared domain language for ESP32 edge firmware in the Greenhouse platform.
 Use these terms consistently across code, docs, and design discussions.
 
 ## Language
@@ -11,27 +11,27 @@ Use these terms consistently across code, docs, and design discussions.
 The local system authority that runs automation, coordinates nodes, and issues commands over MQTT.
 _Avoid_: Server, cloud backend
 
-**Peripheral Node**:
+**Edge Unit**:
 An ESP32 firmware instance connected to the control unit over MQTT.
 _Avoid_: Device (generic), endpoint
 
 **Sensor Node**:
-A peripheral node role that reports measurements from attached sensors.
+An Edge Unit role that reports measurements from attached sensors.
 _Avoid_: Reader node
 
 **Actuator Node**:
-A peripheral node role that executes hardware actions through attached actuators.
+An Edge Unit role that executes hardware actions through attached actuators.
 _Avoid_: Output node
 
 ### Hardware Model
 
 **Slot**:
-A numbered attachment point on a peripheral node for one module.
+A numbered attachment point on an Edge Unit for one module.
 _Avoid_: Port (ambiguous), channel
 
 **Module**:
 A sensor or actuator unit attached to a slot.
-_Avoid_: Peripheral (ambiguous), plugin
+_Avoid_: Addon (ambiguous), plugin
 
 **Slot Fault Isolation**:
 A fault containment rule where one failing slot does not cascade failure to other slots.
@@ -50,6 +50,20 @@ _Avoid_: Ping packet
 **Command Topic**:
 The MQTT topic namespace used by the control unit to request node actions.
 _Avoid_: RPC endpoint
+
+### Provisioning and Onboarding
+
+**Onboarding**:
+The first-time setup flow where a new Edge Unit receives bootstrap connectivity data from the Main Control Unit.
+_Avoid_: Manual preconfiguration
+
+**Provisioning Mode**:
+Temporary setup state where an unprovisioned Edge Unit advertises over BLE and accepts onboarding data.
+_Avoid_: Permanent pairing mode
+
+**BLE Provisioning**:
+The Phase 1 onboarding transport used to exchange WiFi credentials and bootstrap MQTT endpoint data.
+_Avoid_: Static-IP-only bootstrap
 
 **Canonical Payload**:
 The project-standard message shape and field semantics for MQTT payloads.

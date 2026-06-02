@@ -6,7 +6,7 @@ Guide coding agents to implement maintainable ESP32 firmware with clear layering
 
 ## Use This Skill When
 
-- Creating new firmware modules for peripheral nodes.
+- Creating new firmware modules for Edge Units.
 - Refactoring mixed hardware and business logic into separate layers.
 - Designing startup, runtime, and fault handling flows.
 

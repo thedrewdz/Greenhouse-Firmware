@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository contains ESP32 peripheral firmware for the Greenhouse platform.
+This repository contains ESP32 edge firmware for the Greenhouse platform.
 
 This is not the control-unit application repository.
 

@@ -3,7 +3,7 @@
 # Overview
 
 The greenhouse platform uses a distributed device model built around modular ESP32-based nodes.
-Each peripheral control unit hosts a fixed number of slots for sensor and actuator connections.
+Each Edge Unit hosts a fixed number of slots for sensor and actuator connections.
 Attached sensor and actuator MPUs are responsible for local hardware translation and canonicalization.
 
 This allows:
@@ -14,12 +14,12 @@ This allows:
 
 ---
 
-# Physical Peripheral Bus Model
+# Physical Edge Unit Bus Model
 
-Each peripheral control unit has a fixed slot count.
+Each Edge Unit has a fixed slot count.
 
 - Each slot uses a 4-wire cable.
-- Connected sensor and actuator MPUs share the same I2C bus on the peripheral control unit.
+- Connected sensor and actuator MPUs share the same I2C bus on the Edge Unit.
 - A slot may be unassigned, sensor-assigned, or actuator-assigned.
 
 ## Sensor MPUs
@@ -27,7 +27,7 @@ Each peripheral control unit has a fixed slot count.
 Sensors use a small onboard MPU (for example Arduino Nano or Pro class boards).
 
 - The sensor MPU owns sensor-specific hardware interactions.
-- The sensor MPU publishes canonicalized values to the hosting peripheral control unit.
+- The sensor MPU publishes canonicalized values to the hosting Edge Unit.
 - Sensor identity uses a unique I2C address.
 
 Initial addressing convention:
@@ -39,10 +39,10 @@ In rare cases where the attached sensing hardware also uses I2C, the sensor MPU 
 
 ## Actuator MPUs
 
-Actuator MPUs receive generic instructions from the hosting peripheral control unit and translate them to actuator-specific operations.
+Actuator MPUs receive generic instructions from the hosting Edge Unit and translate them to actuator-specific operations.
 
 - Execute actuator-specific behavior.
-- Return canonicalized response status to the hosting peripheral control unit.
+- Return canonicalized response status to the hosting Edge Unit.
 - Keep actuator safety behavior local to the actuator module.
 
 ---
@@ -120,9 +120,9 @@ Each device must contain:
 - unique device ID - WiFi MAC address
 - firmware version
 - hardware revision
-- capability list - analogous with connected peripherals
+- capability list - analogous with connected edge modules
 - general fault code - 0 means none
-- fault list - fault states per capability/peripheral
+- fault list - fault states per capability or edge module
 
 ---
 
@@ -146,16 +146,45 @@ Example metadata structure:
 }
 ```
 
+# Onboarding Model (Phase 1)
+
+Phase 1 onboarding is BLE-first for user-friendly setup.
+
+Rationale:
+
+- no requirement for user-managed cables
+- no requirement for user-managed static IP configuration
+- better support for non-technical users
+
+Baseline assumption:
+
+- Main Control Unit hardware is Raspberry Pi 4B (BLE-capable)
+
+Provisioning sequence:
+
+- Edge Unit boots unprovisioned and enters BLE provisioning mode
+- Main Control Unit discovers and pairs with the Edge Unit over BLE
+- Main Control Unit sends WiFi credentials and bootstrap MQTT endpoint
+- Edge Unit validates and stores provisioning data
+- Edge Unit connects to WiFi and MQTT
+- Edge Unit publishes first heartbeat
+- Main Control Unit marks onboarding complete
+
+Recovery path:
+
+- Wired provisioning may be used as an optional fallback during support or manufacturing
+
 # Device Registration
 
 - Devices register themselves during startup
-- Devices do not store config
-- Config is always received from the main unit during startup whether first time or subsequent. 
-- From the device perspective, registration and startup is the same.
+- Devices persist provisioning data required for network bootstrap.
+- Runtime configuration is still sourced from the Main Control Unit.
+- From the device perspective, registration and startup are unified after provisioning is complete.
 
 Registration process:
 
 - Boot
+- If unprovisioned, perform BLE onboarding first
 - Query connected slot modules and capture current slot state
 - Connect to WiFi
 - Connect to MQTT
@@ -165,7 +194,7 @@ Registration process:
 
 Main control unit behavior on heartbeat:
 
-- If no configuration exists for the peripheral control unit, treat it as a newly discovered unit and trigger setup/onboarding.
+- If no configuration exists for the Edge Unit, treat it as a newly discovered unit and trigger setup/onboarding.
 - If configuration exists but discovered slot topology differs from stored configuration, trigger configuration update flow.
 - If configuration exists and topology matches, continue normal operation.
 
@@ -265,7 +294,7 @@ ESP32 firmware should remain modular.
 - MQTT client: `esp-mqtt` (Espressif managed)
 - JSON codec library: `cJSON`
 - RTOS model: FreeRTOS tasks and queues/event groups
-- Transport: WiFi station mode for peripheral connectivity
+- Transport: WiFi station mode for edge connectivity
 
 POC experiments used `knolleary/PubSubClient` successfully for connectivity validation. For this project, the standard implementation should use `esp-mqtt` for production firmware behavior and long-term maintainability.
 
@@ -352,13 +381,13 @@ Devices should support:
 - remote configuration updates from the Main Control Unit
 - runtime application of received configuration
 
-In Phase 1, peripheral units do not persist long-term configuration. The Main Control Unit is the source of truth for configuration and sends configuration to peripherals.
+In Phase 1, Edge Units do not persist long-term configuration. The Main Control Unit is the source of truth for configuration and sends configuration to edge units.
 
 The Main Control Unit is also the custodian of configuration lifecycle decisions.
 
-- New peripheral discovered: prompt onboarding flow.
-- Existing peripheral changed: prompt reconfiguration flow.
-- Existing peripheral unchanged: apply stored configuration without user intervention.
+- New edge unit discovered: prompt onboarding flow.
+- Existing edge unit changed: prompt reconfiguration flow.
+- Existing edge unit unchanged: apply stored configuration without user intervention.
 
 # Future OTA Update Model
 
@@ -410,6 +439,6 @@ These protections operate independently of the central controller.
 To avoid over-developing, we will not attempt to maintain time on all devices.
 
 - Central control unit (main unit) is responsible for timing
-- Peripheral units maintain an integer message index that is incremented with every payload published
+- Edge Units maintain an integer message index that is incremented with every payload published
 - message index can be assigned during startup routine based on stored value from main unit.
 

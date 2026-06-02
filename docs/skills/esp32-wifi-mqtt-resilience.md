@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guide coding agents to implement resilient WiFi and MQTT behavior for local-first greenhouse peripheral firmware.
+Guide coding agents to implement resilient WiFi and MQTT behavior for local-first greenhouse edge firmware.
 
 ## Use This Skill When
 

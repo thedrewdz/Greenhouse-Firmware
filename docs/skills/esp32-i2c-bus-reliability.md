@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Help coding agents implement robust I2C communication for ESP32-based peripheral control units with multiple slot modules.
+Help coding agents implement robust I2C communication for ESP32-based Edge Units with multiple slot modules.
 
 ## Use This Skill When
 

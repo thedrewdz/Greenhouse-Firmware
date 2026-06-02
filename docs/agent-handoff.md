@@ -4,22 +4,30 @@ This file is for time-bound handoff state only.
 
 For stable agent policy, coding rules, and skills selection, use AGENTS.md.
 
-## Repository Purpose
-
-This repository is for Greenhouse peripheral firmware on ESP32 devices.
-
-Current root README states:
-- project name: Greenhouse-Firmware
-- purpose: firmware for peripheral units
-
-This is not the .NET control-unit application repository.
-
 ## Current Workspace State
 
 - Path: D:\Code\Greenhouse\esp32-main
-- Present at root: .git, .gitignore, README.md, LICENSE, docs/
-- Firmware source folders are not yet present in this workspace snapshot.
-- Documentation has been pruned to firmware-relevant scope.
+- PlatformIO ESP-IDF project now exists at greenhouse-edge/.
+- Current scaffold includes:
+   - greenhouse-edge/platformio.ini
+   - greenhouse-edge/src/main.c
+   - greenhouse-edge/src/CMakeLists.txt
+- New firmware modules added in this session:
+   - greenhouse-edge/src/app.h
+   - greenhouse-edge/src/app.c
+   - greenhouse-edge/src/app_types.h
+   - greenhouse-edge/src/codec_json.h
+   - greenhouse-edge/src/codec_json.c
+   - greenhouse-edge/src/runtime_config.h
+   - greenhouse-edge/src/services_network.h
+   - greenhouse-edge/src/services_network.c
+   - greenhouse-edge/src/services_mqtt.h
+   - greenhouse-edge/src/services_mqtt.c
+- New spec added in this session:
+   - docs/spec-heartbeat-phase1-skeleton.md
+   - docs/spec-edge-unit-onboarding-ble.md
+- New ADR added in this session:
+   - docs/adr/0001-ble-first-onboarding.md
 
 ## Confirmed Technical Decisions
 
@@ -34,74 +42,74 @@ This is not the .NET control-unit application repository.
    - Phase 1 uses JSON via cJSON
    - codec boundary is required to keep transport independent from payload parsing
    - Phase 2 may evaluate compact binary formats only with measured evidence
+- Onboarding strategy:
+   - Phase 1 onboarding is BLE-first
+   - Main Unit baseline is Raspberry Pi 4B BLE capability
+   - Wired onboarding is optional fallback for recovery and manufacturing
 
-## Practical Resume Checklist
+## Current Progress Snapshot
 
-1. Confirm you are in this repo:
+- main entrypoint now calls app orchestrator:
+   - gh_app_init()
+   - gh_app_tick() on a periodic non-blocking loop (100 ms tick)
+- codec module now supports:
+   - command topic parsing for ghcmd/rd-{deviceId} and ghcmd/wr-{deviceId}
+   - canonical command payload parsing and validation
+   - canonical response payload JSON encoding
+   - canonical heartbeat payload JSON encoding (with empty slots and capabilities arrays for now)
+- app module now supports:
+   - device_id derivation from MAC address
+   - monotonic runtime message id generation
+   - heartbeat payload generation at fixed interval and MQTT publish path
+   - immediate heartbeat publish after MQTT reconnect
+   - command topic and payload parse for inbound MQTT data (log-only action)
+   - MQTT startup gating on WiFi-ready state to avoid pre-network false-negative connect errors
+- network service now supports:
+   - WiFi STA startup
+   - IP event tracking
+   - bounded reconnect retry with exponential backoff and jitter
+- MQTT service now supports:
+   - client startup and command topic subscriptions
+   - bounded reconnect attempts with exponential backoff and jitter
+   - publish wrapper for application layer
+   - inbound message callback delivery to app layer
+   - startup behavior that avoids immediate forced reconnect before network-driven MQTT lifecycle events
+- Build status:
+   - platformio build succeeds for env esp32dev
+   - last validated runtime sequence: WiFi ready -> MQTT connected -> heartbeat publish to gh/heartbeat
+   - heartbeat messages confirmed as received by Main Unit (Raspberry Pi Mosquitto subscriber on gh/#)
+   - startup false-negative mitigated: no pre-network "Host is unreachable" MQTT error after readiness gating
 
-```powershell
-git rev-parse --show-toplevel
-git branch --show-current
-git status --short
-```
+## Known Gaps
 
-2. Validate docs are aligned to firmware scope:
-- docs/agent-handoff.md
-- AGENTS.md
-- docs/device-model.md
-- docs/mqtt-topics.md
-- docs/architecture.md
-
-3. Before coding, read the implementation constraints:
-- AGENTS.md
-
-## Immediate Next Work (Code Generation)
-
-1. Initialize ESP-IDF firmware project structure for peripheral node implementation.
-
-2. Create initial module boundaries with header and source separation:
-- app: startup orchestration and non-blocking main loop scheduling
-- services/network: WiFi connection state machine
-- services/messaging: esp-mqtt connection, subscribe, publish
-- services/heartbeat: heartbeat cadence and payload composition
-- codec/json: cJSON encode and decode plus payload validation
-- hal/i2c: shared bus access and module probing
-- modules/slots: slot state registry and fault isolation logic
-
-3. Implement first vertical slice:
-- boot
-- connect WiFi
-- connect MQTT
-- publish heartbeat to gh/heartbeat
-- subscribe to ghcmd/rd-{deviceId} and ghcmd/wr-{deviceId}
-- parse commands via codec layer
-- publish canonical ack and read responses
-
-4. Add tests in parallel with implementation:
-- unit tests for codec parse and validation
-- host-mock tests for reconnect and slot-fault isolation behavior
-- define a minimal HIL smoke checklist for boot and heartbeat validation
+- Slot discovery and I2C fault isolation not implemented yet.
+- Canonical ack or error response publish path for inbound commands not implemented yet.
+- Unit and host-mock tests not added yet.
+- Flash size warning still appears in build output (board reports 4 MB while sdkconfig is 2 MB profile).
+- BLE onboarding runtime implementation is not yet coded (docs completed first).
+- Serial upload port may intermittently disappear on this workstation; reconnecting ESP32 restored successful flashing in the latest validation pass.
 
 ## Open Questions For The Next Pass
 
 - Which exact ESP32 board target is Phase 1 baseline?
-- What is the baseline target board and flash/PSRAM profile?
+- What is the baseline flash and PSRAM profile for the chosen board?
 - What telemetry schema versioning strategy should firmware enforce?
 - Should nodes support mixed sensor and actuator slots in Phase 1 or later?
 - What are hard realtime/safety constraints for actuator command execution?
 
-## First Coding Session Deliverables
+## Next Actions
 
-- Project skeleton with compile-ready module structure
-- Buildable startup path that publishes one valid heartbeat
-- Command topic subscriptions wired through codec boundary
-- Initial error-code mapping for invalid payload and invalid slot
-- Test scaffold with at least one unit test and one host-mock test
+1. Implement canonical ack and error response publish path for inbound commands.
+2. Add slot registry abstraction and invalid_slot validation path.
+3. Add unit tests for codec parse and validation rules.
+4. Add host-mock tests for reconnect behavior.
+5. Decide and align flash profile to remove 2 MB vs 4 MB warning.
+6. Implement BLE provisioning mode and onboarding payload exchange per docs/spec-edge-unit-onboarding-ble.md.
 
 ## Resume Prompt
 
 Use this prompt when continuing work in this repo:
 
 ```text
-Read docs/agent-handoff.md, then generate the initial ESP-IDF firmware code skeleton and first heartbeat plus command-handling vertical slice using esp-mqtt and cJSON with strict header/source separation.
+Read AGENTS.md and docs/agent-handoff.md, then implement command ack/error publish flow for ghcmd traffic (gh/ack and gh/rd), including invalid_slot and invalid_payload handling with stable GH_ERR_* codes.
 ```

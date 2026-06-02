@@ -1,0 +1,171 @@
+#include "app.h"
+
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+
+#include "app_types.h"
+#include "codec_json.h"
+#include "runtime_config.h"
+#include "services_mqtt.h"
+#include "services_network.h"
+
+static const char *TAG = "gh_app";
+static const uint64_t HEARTBEAT_INTERVAL_US = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
+
+static char s_device_id[GH_DEVICE_ID_MAX_LEN];
+static uint32_t s_message_id = 1U;
+static uint64_t s_next_heartbeat_at_us = 0ULL;
+static bool s_last_mqtt_connected;
+static bool s_mqtt_started;
+static bool s_waiting_for_network_logged;
+
+static void read_device_id(char *device_id, size_t device_id_len) {
+    uint8_t mac[6];
+
+    (void)esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    (void)snprintf(
+        device_id,
+        device_id_len,
+        "%02X%02X%02X%02X%02X%02X",
+        mac[0],
+        mac[1],
+        mac[2],
+        mac[3],
+        mac[4],
+        mac[5]);
+}
+
+static void on_command_received(const char *topic, const char *payload) {
+    bool is_write = false;
+    gh_command_t cmd;
+    gh_error_code_t err = GH_ERR_NONE;
+
+    (void)memset(&cmd, 0, sizeof(cmd));
+
+    if (!gh_codec_parse_command_topic(topic, s_device_id, &is_write)) {
+        ESP_LOGW(TAG, "Ignoring message on non-command topic: %s", topic);
+        return;
+    }
+
+    if (!gh_codec_parse_command_payload(payload, &cmd, &err)) {
+        ESP_LOGW(TAG, "Invalid command payload err=%d payload=%s", (int)err, payload);
+        return;
+    }
+
+    cmd.is_write = is_write;
+    ESP_LOGI(
+        TAG,
+        "Command received id=%" PRIu32 " slot=%d state=%s value=%.2f write=%d",
+        cmd.id,
+        cmd.slot_id,
+        cmd.state,
+        cmd.value,
+        cmd.is_write ? 1 : 0);
+}
+
+static void publish_heartbeat(void) {
+    gh_heartbeat_t heartbeat;
+    char *payload;
+    esp_err_t err;
+
+    (void)memset(&heartbeat, 0, sizeof(heartbeat));
+    heartbeat.id = s_message_id++;
+    (void)strncpy(heartbeat.device_id, s_device_id, sizeof(heartbeat.device_id) - 1U);
+    (void)strncpy(heartbeat.hardware_revision, "A", sizeof(heartbeat.hardware_revision) - 1U);
+    (void)strncpy(heartbeat.firmware_version, "0.1.0", sizeof(heartbeat.firmware_version) - 1U);
+    heartbeat.uptime_seconds = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+    heartbeat.wifi_rssi = gh_network_get_rssi();
+    heartbeat.slot_count = 0;
+
+    payload = gh_codec_build_heartbeat_payload(&heartbeat);
+    if (payload == NULL) {
+        ESP_LOGE(TAG, "Heartbeat encode failed");
+        return;
+    }
+
+    err = gh_mqtt_publish("gh/heartbeat", payload, 1, 0);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Heartbeat publish failed err=0x%x", (unsigned int)err);
+    } else {
+        ESP_LOGI(TAG, "Published heartbeat to gh/heartbeat payload=%s", payload);
+    }
+
+    gh_codec_free_payload(payload);
+}
+
+void gh_app_init(void) {
+    esp_err_t err;
+
+    read_device_id(s_device_id, sizeof(s_device_id));
+    s_next_heartbeat_at_us = esp_timer_get_time();
+    s_last_mqtt_connected = false;
+    s_mqtt_started = false;
+    s_waiting_for_network_logged = false;
+
+    ESP_LOGI(TAG, "Greenhouse edge app init, device_id=%s", s_device_id);
+
+    err = gh_network_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Network init failed err=0x%x", (unsigned int)err);
+        return;
+    }
+
+    err = gh_network_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Network start failed err=0x%x", (unsigned int)err);
+    }
+
+    err = gh_mqtt_init(s_device_id, on_command_received);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "MQTT init failed err=0x%x", (unsigned int)err);
+        return;
+    }
+}
+
+void gh_app_tick(void) {
+    const uint64_t now_us = (uint64_t)esp_timer_get_time();
+    const bool network_connected = gh_network_is_connected();
+    bool mqtt_connected;
+    esp_err_t err;
+
+    gh_network_tick();
+
+    if (!s_mqtt_started) {
+        if (!network_connected) {
+            if (!s_waiting_for_network_logged) {
+                ESP_LOGI(TAG, "Waiting for WiFi readiness before starting MQTT");
+                s_waiting_for_network_logged = true;
+            }
+        } else {
+            err = gh_mqtt_start();
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "MQTT start deferred retry err=0x%x", (unsigned int)err);
+            } else {
+                s_mqtt_started = true;
+                s_waiting_for_network_logged = false;
+            }
+        }
+    }
+
+    gh_mqtt_tick(network_connected);
+
+    mqtt_connected = gh_mqtt_is_connected();
+
+    if (mqtt_connected && !s_last_mqtt_connected) {
+        s_next_heartbeat_at_us = now_us;
+    }
+    s_last_mqtt_connected = mqtt_connected;
+
+    if (mqtt_connected && now_us >= s_next_heartbeat_at_us) {
+        publish_heartbeat();
+        s_next_heartbeat_at_us = now_us + HEARTBEAT_INTERVAL_US;
+    }
+}

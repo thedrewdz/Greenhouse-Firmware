@@ -1,6 +1,6 @@
 # Skills Index
 
-This folder contains reusable skills for coding and documentation agents working on ESP32 greenhouse peripheral firmware.
+This folder contains reusable skills for coding and documentation agents working on ESP32 greenhouse edge firmware.
 
 ## Available Skills
 

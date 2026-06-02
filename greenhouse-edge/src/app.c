@@ -14,17 +14,20 @@
 #include "app_types.h"
 #include "codec_json.h"
 #include "runtime_config.h"
+#include "services_ble_onboarding.h"
 #include "services_mqtt.h"
 #include "services_network.h"
+#include "services_provisioning_config.h"
 
 static const char *TAG = "gh_app";
-static const uint64_t HEARTBEAT_INTERVAL_US = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
 
 static char s_device_id[GH_DEVICE_ID_MAX_LEN];
 static uint32_t s_message_id = 1U;
 static uint64_t s_next_heartbeat_at_us = 0ULL;
+static uint64_t s_heartbeat_interval_us = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
 static bool s_last_mqtt_connected;
 static bool s_mqtt_started;
+static bool s_provisioning_mode;
 static bool s_waiting_for_network_logged;
 
 static void read_device_id(char *device_id, size_t device_id_len) {
@@ -102,15 +105,36 @@ static void publish_heartbeat(void) {
 }
 
 void gh_app_init(void) {
+    gh_provisioning_config_t provisioning_config;
     esp_err_t err;
 
     read_device_id(s_device_id, sizeof(s_device_id));
     s_next_heartbeat_at_us = esp_timer_get_time();
+    s_heartbeat_interval_us = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
     s_last_mqtt_connected = false;
     s_mqtt_started = false;
+    s_provisioning_mode = false;
     s_waiting_for_network_logged = false;
 
     ESP_LOGI(TAG, "Greenhouse edge app init, device_id=%s", s_device_id);
+
+    err = gh_provisioning_config_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Provisioning config init failed err=0x%x", (unsigned int)err);
+        return;
+    }
+
+    if (!gh_provisioning_config_load(&provisioning_config)) {
+        s_provisioning_mode = true;
+        ESP_LOGI(TAG, "Provisioning data missing; entering BLE Provisioning Mode");
+        err = gh_ble_onboarding_start(s_device_id);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "BLE onboarding start failed err=0x%x", (unsigned int)err);
+        }
+        return;
+    }
+
+    s_heartbeat_interval_us = ((uint64_t)provisioning_config.heartbeat_interval_ms * 1000ULL);
 
     err = gh_network_init();
     if (err != ESP_OK) {
@@ -118,12 +142,12 @@ void gh_app_init(void) {
         return;
     }
 
-    err = gh_network_start();
+    err = gh_network_start(&provisioning_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Network start failed err=0x%x", (unsigned int)err);
     }
 
-    err = gh_mqtt_init(s_device_id, on_command_received);
+    err = gh_mqtt_init(s_device_id, provisioning_config.mqtt_broker_uri, on_command_received);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "MQTT init failed err=0x%x", (unsigned int)err);
         return;
@@ -135,6 +159,10 @@ void gh_app_tick(void) {
     const bool network_connected = gh_network_is_connected();
     bool mqtt_connected;
     esp_err_t err;
+
+    if (s_provisioning_mode) {
+        return;
+    }
 
     gh_network_tick();
 
@@ -166,6 +194,6 @@ void gh_app_tick(void) {
 
     if (mqtt_connected && now_us >= s_next_heartbeat_at_us) {
         publish_heartbeat();
-        s_next_heartbeat_at_us = now_us + HEARTBEAT_INTERVAL_US;
+        s_next_heartbeat_at_us = now_us + s_heartbeat_interval_us;
     }
 }

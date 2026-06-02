@@ -12,7 +12,6 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
-#include "nvs_flash.h"
 
 #include "runtime_config.h"
 
@@ -82,20 +81,9 @@ static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id
 }
 
 esp_err_t gh_network_init(void) {
-    esp_err_t err;
-
     s_wifi_event_group = xEventGroupCreate();
     if (s_wifi_event_group == NULL) {
         return ESP_ERR_NO_MEM;
-    }
-
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    if (err != ESP_OK) {
-        return err;
     }
 
     ESP_ERROR_CHECK(esp_netif_init());
@@ -111,19 +99,28 @@ esp_err_t gh_network_init(void) {
     return ESP_OK;
 }
 
-esp_err_t gh_network_start(void) {
+esp_err_t gh_network_start(const gh_provisioning_config_t *config) {
     wifi_config_t wifi_cfg;
+    size_t ssid_len;
+    size_t password_len;
 
-    if (strlen(GH_WIFI_SSID) == 0U) {
-        ESP_LOGE(TAG, "GH_WIFI_SSID is empty; set build flag -DGH_WIFI_SSID=\"your-ssid\"");
+    if (config == NULL || strlen(config->wifi_ssid) == 0U) {
+        ESP_LOGE(TAG, "WiFi SSID missing from provisioning config");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ssid_len = strlen(config->wifi_ssid);
+    password_len = strlen(config->wifi_password);
+    if (ssid_len > sizeof(wifi_cfg.sta.ssid) || password_len > sizeof(wifi_cfg.sta.password)) {
+        ESP_LOGE(TAG, "Provisioned WiFi credentials exceed ESP32 limits");
         return ESP_ERR_INVALID_ARG;
     }
 
     (void)memset(&wifi_cfg, 0, sizeof(wifi_cfg));
-    (void)snprintf((char *)wifi_cfg.sta.ssid, sizeof(wifi_cfg.sta.ssid), "%s", GH_WIFI_SSID);
-    (void)snprintf((char *)wifi_cfg.sta.password, sizeof(wifi_cfg.sta.password), "%s", GH_WIFI_PASSWORD);
+    (void)memcpy(wifi_cfg.sta.ssid, config->wifi_ssid, ssid_len);
+    (void)memcpy(wifi_cfg.sta.password, config->wifi_password, password_len);
     wifi_cfg.sta.threshold.authmode =
-        (strlen(GH_WIFI_PASSWORD) == 0U) ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+        (strlen(config->wifi_password) == 0U) ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
     wifi_cfg.sta.pmf_cfg.capable = true;
     wifi_cfg.sta.pmf_cfg.required = false;
 
@@ -132,7 +129,7 @@ esp_err_t gh_network_start(void) {
     ESP_ERROR_CHECK(esp_wifi_start());
 
     s_started = true;
-    ESP_LOGI(TAG, "WiFi start requested for SSID=%s", GH_WIFI_SSID);
+    ESP_LOGI(TAG, "WiFi start requested for SSID=%s", config->wifi_ssid);
     return ESP_OK;
 }
 

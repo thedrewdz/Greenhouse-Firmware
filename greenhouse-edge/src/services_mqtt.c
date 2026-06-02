@@ -22,6 +22,7 @@ static bool s_reconnect_scheduled;
 static uint32_t s_retry_count;
 static uint64_t s_next_retry_at_ms;
 static char s_device_id[13];
+static char s_broker_uri[129];
 
 static uint32_t compute_backoff_ms(uint32_t retry_count) {
     uint32_t backoff = GH_MQTT_RETRY_BASE_MS;
@@ -118,9 +119,8 @@ static void on_mqtt_event(void *handler_args, esp_event_base_t base, int32_t eve
     }
 }
 
-esp_err_t gh_mqtt_init(const char *device_id, gh_mqtt_command_cb_t command_cb) {
+esp_err_t gh_mqtt_init(const char *device_id, const char *broker_uri, gh_mqtt_command_cb_t command_cb) {
     esp_mqtt_client_config_t cfg = {
-        .broker.address.uri = GH_MQTT_BROKER_URI,
         .network.disable_auto_reconnect = true,
     };
 
@@ -128,12 +128,19 @@ esp_err_t gh_mqtt_init(const char *device_id, gh_mqtt_command_cb_t command_cb) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (strlen(GH_MQTT_BROKER_URI) == 0U) {
-        ESP_LOGE(TAG, "GH_MQTT_BROKER_URI is empty; set build flag -DGH_MQTT_BROKER_URI=\"mqtt://broker-ip\"");
+    if (broker_uri == NULL || strlen(broker_uri) == 0U) {
+        ESP_LOGE(TAG, "Bootstrap MQTT Endpoint missing from provisioning config");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strlen(broker_uri) >= sizeof(s_broker_uri)) {
+        ESP_LOGE(TAG, "Bootstrap MQTT Endpoint exceeds supported length");
         return ESP_ERR_INVALID_ARG;
     }
 
     (void)snprintf(s_device_id, sizeof(s_device_id), "%s", device_id);
+    (void)snprintf(s_broker_uri, sizeof(s_broker_uri), "%s", broker_uri);
+    cfg.broker.address.uri = s_broker_uri;
     s_command_cb = command_cb;
 
     s_client = esp_mqtt_client_init(&cfg);
@@ -141,6 +148,7 @@ esp_err_t gh_mqtt_init(const char *device_id, gh_mqtt_command_cb_t command_cb) {
         return ESP_FAIL;
     }
 
+    ESP_LOGI(TAG, "MQTT client configured for broker=%s", broker_uri);
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, on_mqtt_event, NULL));
     return ESP_OK;
 }

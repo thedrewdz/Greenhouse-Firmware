@@ -5,5 +5,5 @@ FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/src/*.*)
 
 idf_component_register(
 	SRCS ${app_sources}
-	REQUIRES mqtt json esp_wifi esp_event esp_netif nvs_flash
+	REQUIRES bt mqtt json esp_wifi esp_event esp_netif nvs_flash
 )

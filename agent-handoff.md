@@ -11,7 +11,7 @@ Durable policy, canonical context, architecture, MQTT contracts, ADRs, and skill
 - Path: `D:\Code\Greenhouse\esp32-main`
 - Repository purpose: ESP32 Edge Unit firmware.
 - Current branch: `main`
-- Last completed commit: `cc43de4 Move durable docs to documentation repo`
+- Last completed commit before this handoff update: `cc43de4 Move durable docs to documentation repo`
 - Local documentation has been removed from this repository except:
   - `README.md`
   - `AGENTS.md`
@@ -20,22 +20,36 @@ Durable policy, canonical context, architecture, MQTT contracts, ADRs, and skill
 
 ## Current Progress Snapshot
 
-- Durable Greenhouse documentation was moved to the dedicated Greenhouse Documentation repository.
-- Local agent instructions now require agents to read the external documentation README before taking other actions.
-- Local terminology was normalized to use `Main Unit`.
-- Local ambiguity-handling guidance now references the Plan Interrogation Method from the grill-with-docs Main Unit skill in the Greenhouse Documentation repository.
+- Implemented the start of the Edge Unit BLE-first onboarding flow.
+- Removed `greenhouse-edge/platformio.local.ini` and removed build-time WiFi/MQTT credential injection from `platformio.ini` and `runtime_config.h`.
+- Startup now initializes NVS, loads provisioning data from namespace `gh_prov`, and uses NVS values for:
+  - `wifi_ssid`
+  - `wifi_pass`
+  - `mqtt_uri`
+  - optional `hb_ms`
+- If required WiFi and Bootstrap MQTT Endpoint values are present, the firmware starts WiFi and then MQTT using the existing non-blocking retry flow.
+- If provisioning values are missing, the firmware enters BLE Provisioning Mode.
+- Added BLE onboarding advertising using NimBLE:
+  - custom 128-bit Greenhouse onboarding service UUID in the primary advertisement
+  - device name `GH-Edge-{device_id}` in the scan response
+  - inferred NimBLE address type for advertising
+- Added a custom 2 MB-friendly partition table because enabling BLE made the firmware exceed the default 1 MB app partition.
+- PlatformIO upload to the connected ESP32 succeeded on `COM3`.
+- BLE smoke test passed: the device was visible to the user as `GH-Edge-10061CB5C3C4`.
 
 ## Open Questions
 
-- None for the documentation cleanup.
+- BLE provisioning payload receive/write flow is not implemented yet; current onboarding work only starts the unprovisioned advertising path.
+- The ESP32 board profile still reports a 4 MB expected flash size while upload detects 2 MB. The custom partition table is sized for the detected 2 MB flash.
 
 ## Next Actions
 
-- Continue firmware work from the current clean documentation baseline.
-- Before implementing firmware changes, read the relevant external Greenhouse Documentation files and skills listed from the documentation README.
+- Implement the BLE GATT provisioning payload contract from the Greenhouse Documentation onboarding spec.
+- Validate payload fields, persist accepted provisioning data to NVS as one logical configuration update, and transition to WiFi/MQTT startup after successful provisioning.
+- Consider adding a factory reset or forced re-entry path for Provisioning Mode when the documentation decision is settled.
 
 ## Resume Prompt
 
 ```text
-Read AGENTS.md, agent-handoff.md, and the Greenhouse Documentation README, then continue ESP32 Edge Unit firmware work using the relevant external documentation and skills for the task.
+Read AGENTS.md, agent-handoff.md, and the Greenhouse Documentation README, then continue ESP32 Edge Unit firmware work using the relevant external onboarding, device model, and MQTT documentation.
 ```

@@ -1,5 +1,9 @@
 # Agent Handoff
 
+This file is for time-bound handoff state only.
+
+For stable agent policy, coding rules, and skills selection, use AGENTS.md.
+
 ## Repository Purpose
 
 This repository is for Greenhouse peripheral firmware on ESP32 devices.
@@ -31,31 +35,6 @@ This is not the .NET control-unit application repository.
    - codec boundary is required to keep transport independent from payload parsing
    - Phase 2 may evaluate compact binary formats only with measured evidence
 
-## Agent Guidance Baseline
-
-Use and follow:
-
-- .github/copilot-instructions.md
-- docs/skills/esp32-firmware-architecture.md
-- docs/skills/esp32-i2c-bus-reliability.md
-- docs/skills/esp32-wifi-mqtt-resilience.md
-- docs/skills/esp-idf-firmware-practices.md
-- docs/skills/esp-idf-testing-strategy.md
-- docs/skills/embedded-oo-coding-standards.md
-
-## Documentation Scope Guidance
-
-Keep this repo's docs focused on firmware concerns:
-- ESP32 hardware assumptions
-- peripheral node roles (sensor and actuator nodes)
-- telemetry payload formats and constraints
-- command handling and safety/failsafe behavior
-- connectivity, retry, and offline buffering strategy
-- OTA update strategy for peripheral firmware
-- topic naming and message schema from the firmware perspective
-
-Avoid mixing in control-unit/UI implementation details (Blazor routes, .NET service wiring, desktop/server deployment specifics).
-
 ## Practical Resume Checklist
 
 1. Confirm you are in this repo:
@@ -68,13 +47,13 @@ git status --short
 
 2. Validate docs are aligned to firmware scope:
 - docs/agent-handoff.md
+- AGENTS.md
 - docs/device-model.md
 - docs/mqtt-topics.md
 - docs/architecture.md
 
 3. Before coding, read the implementation constraints:
-- .github/copilot-instructions.md
-- docs/skills/README.md
+- AGENTS.md
 
 ## Immediate Next Work (Code Generation)
 

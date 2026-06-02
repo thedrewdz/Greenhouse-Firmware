@@ -28,3 +28,17 @@ This folder contains reusable skills for coding and documentation agents working
 5. Apply esp-idf-firmware-practices.md for ESP-IDF component and RTOS conventions.
 6. Apply esp-idf-testing-strategy.md for test planning and verification gates.
 7. Apply embedded-oo-coding-standards.md as a review gate on all code changes.
+
+## Domain Docs Convention
+
+Agents should follow this repo's domain-doc layout:
+
+- CONTEXT.md: canonical glossary for firmware domain language
+- docs/adr/: architecture decision records using sequential numbering
+
+Working rules:
+
+1. Read CONTEXT.md before naming modules, concepts, or boundaries.
+2. Keep CONTEXT.md free of implementation details.
+3. When terminology is clarified, update CONTEXT.md in the same session.
+4. Record hard-to-reverse architectural trade-offs in docs/adr/.

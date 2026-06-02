@@ -1,45 +1,9 @@
-# Greenhouse Firmware
+# Greenhouse ESP32 Firmware
 
-Firmware and supporting documentation for Greenhouse Edge Units and related platform integration.
+ESP32 edge firmware for the Greenhouse platform.
 
-## MQTT Broker Reference
+Before working in this repository, agents must first read the central documentation entry point:
 
-The Main Unit currently uses Mosquitto as the local MQTT broker on the Raspberry Pi.
+- [Greenhouse Documentation README](https://github.com/thedrewdz/Greenhouse-Documentation/blob/main/README.md)
 
-Typical service commands on the Pi:
-
-```sh
-sudo systemctl status mosquitto
-sudo systemctl start mosquitto
-sudo systemctl enable mosquitto
-sudo journalctl -u mosquitto -n 100 --no-pager
-```
-
-Notes:
-
-- `systemctl status` checks whether the broker is installed and running.
-- `systemctl start` starts the broker immediately.
-- `systemctl enable` configures the broker to start on boot.
-- `journalctl` shows broker service logs for startup, bind, auth, or config issues.
-
-## Viewing MQTT Traffic
-
-`mosquitto_sub` does not start the broker. It subscribes to live MQTT traffic.
-
-Useful commands:
-
-```sh
-mosquitto_sub -h localhost -t "gh/heartbeat" -v
-mosquitto_sub -h localhost -t "gh/#" -v
-```
-
-Notes:
-
-- `gh/heartbeat` shows the current Phase 1 Edge Unit heartbeat topic.
-- `gh/#` shows all current topics under the `gh` namespace.
-- Use these commands to confirm that the Edge Unit is reaching the broker and publishing payloads.
-
-See also:
-
-- `docs/mqtt-topics.md`
-- `docs/spec-heartbeat-phase1-skeleton.md`
+All durable project documentation lives in the dedicated Greenhouse Documentation repository.

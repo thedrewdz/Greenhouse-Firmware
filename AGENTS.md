@@ -17,7 +17,7 @@ Use the dedicated Greenhouse Documentation repository for durable project docume
 ## Ambiguity Handling
 
 - Replace fuzzy terms with the canonical term from the Greenhouse Documentation repository.
-- When a plan, requirement, or architecture direction is ambiguous, apply the Plan Interrogation Method from `skills/grill-with-docs-main-control-unit.md` in the Greenhouse Documentation repository.
+- When a plan, requirement, or architecture direction is ambiguous, apply the Plan Interrogation Method from the grill-with-docs Main Unit skill in the Greenhouse Documentation repository.
 - Explore existing docs and code before asking the user a question.
 - Ask only the highest-leverage unresolved question, include a recommended default answer, and wait for feedback before asking the next question.
 - Resolve terminology conflicts in the touched local instructions immediately.

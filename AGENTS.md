@@ -14,14 +14,6 @@ Before taking any other action in this repository, agents must read the central 
 
 Use the dedicated Greenhouse Documentation repository for durable project documentation, canonical context, architecture, MQTT contracts, ADRs, and skill guidance.
 
-## Ambiguity Handling
-
-- Replace fuzzy terms with the canonical term from the Greenhouse Documentation repository.
-- When a plan, requirement, or architecture direction is ambiguous, apply the Plan Interrogation Method from the grill-with-docs Main Unit skill in the Greenhouse Documentation repository.
-- Explore existing docs and code before asking the user a question.
-- Ask only the highest-leverage unresolved question, include a recommended default answer, and wait for feedback before asking the next question.
-- Resolve terminology conflicts in the touched local instructions immediately.
-
 ## Scope Boundaries
 
 - Keep work focused on embedded firmware concerns.
@@ -35,8 +27,21 @@ Use this precedence order when instructions overlap:
 1. AGENTS.md (this file)
 2. .github/copilot-instructions.md
 3. Greenhouse Documentation repository instructions and docs
+4. Local repository docs under docs/ (supplemental only)
 
 If guidance conflicts, follow the highest-precedence source.
+
+## Local Docs And Skill Pattern
+
+- Treat all local docs in this repository under docs/ as supplemental repository guidance.
+- Do not let local docs override canonical policy, architecture, contracts, or terminology from the Greenhouse Documentation repository.
+- If a documentation, knowledge or skill gap is identified, don't make things up, instead bring it to the user's attension to be addressed properly.
+- Local documentation authored in this repository would typically be in the form of ADRs located under docs/adr/.
+- When adding or updating a local ADR:
+	1. Read the central documentation entry point first: https://github.com/thedrewdz/Greenhouse-Documentation/blob/main/README.md
+	2. Align terms and assumptions with canonical docs before writing local ADR content.
+	3. Keep local ADRs focused on repository-specific decisions that do not belong in shared canonical docs.
+	4. If canonical and local guidance differ, follow canonical guidance and update or scope the ADR accordingly.
 
 ## Coding Standards
 

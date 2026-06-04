@@ -5,32 +5,34 @@
 - Canonical spec: `specs/edge-unit-onboarding/spec.md` from Greenhouse Documentation.
 - Canonical docs: `AGENTS.md`, `CONTEXT.md`, `architecture.md`, `device-model.md`, `mqtt-topics.md`, `vision.md`.
 - Local docs: `AGENTS.md`, `.github/copilot-instructions.md`, `docs/adr/0001-ble-first-onboarding.md`.
-- Code diff: `origin/main...HEAD` on branch `spec/edge-unit-onboarding`.
+- Code diff: `main...HEAD` on branch `spec/edge-unit-onboarding` at `2f59feb`.
 - Test artifacts: `.agent-output/specs/edge-unit-onboarding/test-gap-report.md`.
-- Verification command: `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge`.
+- Verification commands:
+  - `python -m unittest discover -s greenhouse-edge\tests -v`
+  - `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge`
 
 ## Blocking Findings
 
-1. Bootstrap retry backoff starts at 2s instead of the canonical 1s.
-   - Impacted files: `greenhouse-edge/src/services_network.c`, `greenhouse-edge/src/services_mqtt.c`.
-   - Evidence: both services increment `s_retry_count` before scheduling the delay, and `compute_backoff_ms()` doubles once for `retry_count == 1`. The first failed WiFi/MQTT attempt therefore schedules roughly 2s plus/minus jitter, followed by 4s, 8s, and 16s.
-   - Risk: violates the spec-required Phase 1 schedule of 1s, 2s, 4s, 8s for a five-attempt budget and may push normal onboarding outside expected timing.
-   - Recommended fix: compute delay from completed failures minus one, or increment retry counters after scheduling, so the four inter-attempt delays are 1s, 2s, 4s, and 8s with plus/minus 20 percent jitter.
+1. Successful BLE provisioning can stop the onboarding service before the success status is delivered.
+   - Impacted files: `greenhouse-edge/src/app.c`, `greenhouse-edge/src/services_ble_onboarding.c`.
+   - Evidence: `on_provisioning_payload()` calls `gh_ble_onboarding_stop()` before writing the success result into `out_status`. The BLE write handler only calls `notify_status()` after the callback returns. Stopping onboarding disables advertising and stops active advertising, so a successful write can transition away from BLE before the Main Unit has a reliable read/notify opportunity for the required status response.
+   - Risk: violates the spec response contract requiring a success/error BLE status response. The Main Unit may see a write complete or disconnect without the canonical `{ result, error_code, error_message }` success payload, making onboarding completion ambiguous.
+   - Recommended fix: defer `gh_ble_onboarding_stop()` until after the status response has been set and delivered, or have the BLE service own the transition by notifying/read-stabilizing the status first and then asynchronously stopping advertising/session state.
 
-2. Re-entering Provisioning Mode after bootstrap failure does not stop or reset WiFi/MQTT runtime state.
-   - Impacted files: `greenhouse-edge/src/app.c`, `greenhouse-edge/src/services_network.c`, `greenhouse-edge/src/services_mqtt.c`, `greenhouse-edge/src/services_network.h`, `greenhouse-edge/src/services_mqtt.h`.
-   - Evidence: `enter_provisioning_mode()` only starts BLE advertising. The failed WiFi service remains started, the MQTT client remains allocated/started, and `s_started` in MQTT is never cleared. A later accepted provisioning payload calls `gh_network_start()` and `gh_mqtt_init()` over existing service state; then `gh_mqtt_start()` can return `ESP_OK` early because the old client is still marked started.
-   - Risk: after a failed first onboarding attempt, the next valid BLE payload may not actually apply the new MQTT endpoint or restart bootstrap cleanly. This breaks the spec recovery rule that retry-budget exhaustion re-enters Provisioning Mode and waits for a new onboarding attempt.
-   - Recommended fix: add explicit stop/reset APIs for WiFi and MQTT bootstrap state before entering Provisioning Mode, or make `start_network_bootstrap()` fully reinitialize existing service state and recreate/reconfigure the MQTT client for the new provisioning payload.
+2. Provisioning persistence can partially overwrite the previous valid configuration before returning an error.
+   - Impacted file: `greenhouse-edge/src/services_provisioning_config.c`.
+   - Evidence: `gh_provisioning_config_save()` writes `wifi_ssid`, then `wifi_password`, then `mqtt_broker_uri`, then `heartbeat_interval_ms` into the existing namespace before `nvs_commit()`. If a later `nvs_set_*` call fails after one or more earlier calls succeeded, the function returns an error but has still staged changes against the same live keys.
+   - Risk: violates the spec requirement that persistence be one logical configuration update and that the Edge Unit retain the last known valid configuration on write failure. Depending on NVS behavior and failure point, a later boot can observe a mixed old/new WiFi or MQTT configuration.
+   - Recommended fix: write to a shadow namespace/record with a version or validity marker, commit only the complete candidate, then atomically promote/select it on load. At minimum, add a fake-NVS unit test that proves failed later writes cannot change the loaded config.
 
 ## Non-Blocking Findings
 
-- None identified beyond the blocking items and test gaps.
+- The retry backoff and clean re-entry findings from the prior review are addressed in the current branch. WiFi and MQTT now schedule from completed failures and reset runtime state before BLE advertising.
 
 ## Architecture Boundary Concerns
 
 - No Main Unit UI, cloud-first, or desktop/server implementation details were introduced.
-- MQTT topic naming and payload field casing remain aligned with the canonical contract.
+- MQTT topic naming and JSON field casing remain aligned with canonical MQTT docs.
 - BLE UUIDs remain a documentation coordination risk already captured in `doc-feedback.md`.
 
 ## Never Events (Auto-Blocking)
@@ -39,19 +41,20 @@
 
 ## Guardrail Update Required
 
-- Existing `doc-feedback.md` already captures missing Spec Control/status handling and BLE GATT UUID documentation gaps. No additional guardrail item is required from this review.
+- Existing `doc-feedback.md` already captures missing Spec Control/status handling, BLE GATT UUID contract gaps, and NVS atomicity ambiguity. No additional guardrail item is required from this review.
 
 ## Test Gaps
 
-- No automated unit tests cover provisioning payload parsing, canonical error-code mapping, retry budgets, backoff/jitter bounds, first-heartbeat publish failure handling, or NVS overwrite/retention behavior.
+- The added Python tests are useful regression guards, but several are source-shape tests or a Python reimplementation of the parser rather than execution of firmware code.
+- No automated ESP-IDF/fake tests prove BLE success status delivery before stop/disconnect.
+- No fake-NVS or HIL tests prove last-known-valid retention on partial write failure.
 - No HIL smoke evidence confirms fresh-device BLE onboarding through first `gh/heartbeat` publish.
-- Build verification passed, but it is not behavioral evidence for onboarding correctness.
 
 ## Documentation Feedback Items
 
-- Use the existing `.agent-output/specs/edge-unit-onboarding/doc-feedback.md` items for missing Spec Control/status handling, BLE GATT UUID contract, NVS atomicity expectations, implementation artifact gating, and spec-branch workflow guidance.
+- Use `.agent-output/specs/edge-unit-onboarding/doc-feedback.md` items for missing Spec Control/status handling, BLE GATT UUID contract, NVS atomicity expectations, implementation artifact gating, and spec-branch workflow guidance.
 
 ## Recommended Next Handoff
 
 - Status recommendation: `ready-for-implementation`.
-- Next role: implementation agent to fix bootstrap retry timing and service reset/re-entry behavior, then test agent to add focused codec/retry tests plus HIL onboarding smoke evidence.
+- Next role: implementation agent to fix BLE status delivery ordering and NVS last-known-valid persistence, then test agent to add focused firmware/fake-service coverage and HIL onboarding smoke evidence.

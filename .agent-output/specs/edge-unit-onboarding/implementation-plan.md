@@ -31,6 +31,13 @@
 - MQTT service layer: update `greenhouse-edge/src/services_mqtt.c` and `.h` to track bounded bootstrap attempts, per-attempt timeout, exponential backoff, jitter, and first-heartbeat publish failure as MQTT bootstrap failure.
 - Runtime configuration: update `greenhouse-edge/src/runtime_config.h` with bootstrap retry budget and attempt timeout defaults.
 
+## Review Fix Pass
+
+- Branch gate: confirmed current branch is `spec/edge-unit-onboarding` and `git pull --ff-only` reported already up to date before changes.
+- Review finding 1: fix WiFi and MQTT bootstrap retry delay scheduling so the four inter-attempt delays for a five-attempt budget are `1s`, `2s`, `4s`, and `8s` with existing plus/minus 20 percent jitter.
+- Review finding 2: add explicit WiFi and MQTT stop/reset paths and call them before entering BLE Provisioning Mode after bootstrap failure, so a later valid provisioning payload starts from clean service state and applies the new MQTT endpoint.
+- Verification update: rerun `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge` after the review fixes.
+
 ## Risks and Mitigations
 
 - Risk: BLE client payloads may exceed single-write limits depending on client MTU.
@@ -54,7 +61,10 @@
 ## Handoff Notes
 
 - Implemented behavior compiles successfully.
-- Verification command result: `pio run` completed with `[SUCCESS]`.
+- Review fix pass completed on branch `spec/edge-unit-onboarding` after `git pull --ff-only` reported already up to date.
+- Blocking review finding 1 addressed: WiFi and MQTT retry scheduling now derives backoff from completed failures minus one, preserving the canonical `1s`, `2s`, `4s`, `8s` inter-attempt schedule for a five-attempt budget while retaining jitter.
+- Blocking review finding 2 addressed: WiFi and MQTT services now expose stop/reset APIs, MQTT init recreates the client for a new Bootstrap MQTT Endpoint, and app re-entry to BLE Provisioning Mode resets WiFi/MQTT runtime state before advertising.
+- Verification command result after review fixes: `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge` completed with `[SUCCESS]`.
 - PlatformIO still reports the pre-existing flash-size warning: board profile expects 4MB and detects 2MB; the custom partition table remains compatible with the detected 2MB flash.
 - No host/unit test harness exists in this repository for BLE GATT, NVS, WiFi, or MQTT service behavior, so verification is currently build-level plus recommended hardware smoke testing.
 - Spec status was not updated because the fetched canonical spec does not include a Spec Control block in the implementation repository; this is captured in `doc-feedback.md`.

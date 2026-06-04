@@ -150,6 +150,14 @@ static esp_err_t start_network_bootstrap(const gh_provisioning_config_t *provisi
 static void enter_provisioning_mode(void) {
     esp_err_t err;
 
+    gh_mqtt_stop_reset();
+    if (s_network_initialized) {
+        gh_network_stop_reset();
+    }
+    s_mqtt_started = false;
+    s_last_mqtt_connected = false;
+    s_first_heartbeat_published = false;
+    s_waiting_for_network_logged = false;
     s_provisioning_mode = true;
     ESP_LOGI(TAG, "Entering BLE Provisioning Mode");
     err = gh_ble_onboarding_start(s_device_id, on_provisioning_payload, NULL);

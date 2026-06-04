@@ -47,7 +47,7 @@ static uint32_t compute_backoff_ms(uint32_t retry_count) {
 
 static void schedule_connect_retry(void) {
     const uint64_t now_ms = (uint64_t)(esp_timer_get_time() / 1000ULL);
-    const uint32_t wait_ms = compute_backoff_ms(s_retry_count);
+    uint32_t wait_ms;
 
     if (s_retry_count >= GH_BOOTSTRAP_RETRY_BUDGET) {
         s_bootstrap_failed = true;
@@ -57,6 +57,7 @@ static void schedule_connect_retry(void) {
         return;
     }
 
+    wait_ms = compute_backoff_ms((s_retry_count > 0U) ? (s_retry_count - 1U) : 0U);
     s_next_retry_at_ms = now_ms + wait_ms;
     s_connect_scheduled = true;
     s_connect_in_progress = false;
@@ -154,6 +155,25 @@ esp_err_t gh_network_start(const gh_provisioning_config_t *config) {
     s_bootstrap_failed = false;
     ESP_LOGI(TAG, "WiFi start requested for SSID=%s", config->wifi_ssid);
     return ESP_OK;
+}
+
+void gh_network_stop_reset(void) {
+    if (s_started) {
+        (void)esp_wifi_disconnect();
+        (void)esp_wifi_stop();
+    }
+
+    if (s_wifi_event_group != NULL) {
+        xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+
+    s_started = false;
+    s_connect_scheduled = false;
+    s_connect_in_progress = false;
+    s_bootstrap_failed = false;
+    s_retry_count = 0;
+    s_next_retry_at_ms = 0;
+    s_connect_started_at_ms = 0;
 }
 
 void gh_network_tick(void) {

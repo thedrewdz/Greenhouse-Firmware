@@ -21,6 +21,7 @@ static bool s_connected;
 static bool s_reconnect_scheduled;
 static bool s_connect_in_progress;
 static bool s_bootstrap_failed;
+static bool s_resetting;
 static uint32_t s_retry_count;
 static uint64_t s_next_retry_at_ms;
 static uint64_t s_connect_started_at_ms;
@@ -47,7 +48,7 @@ static uint32_t compute_backoff_ms(uint32_t retry_count) {
 
 static void schedule_reconnect(void) {
     const uint64_t now_ms = (uint64_t)(esp_timer_get_time() / 1000ULL);
-    const uint32_t wait_ms = compute_backoff_ms(s_retry_count);
+    uint32_t wait_ms;
 
     if (s_retry_count >= GH_BOOTSTRAP_RETRY_BUDGET) {
         s_bootstrap_failed = true;
@@ -57,6 +58,7 @@ static void schedule_reconnect(void) {
         return;
     }
 
+    wait_ms = compute_backoff_ms((s_retry_count > 0U) ? (s_retry_count - 1U) : 0U);
     s_next_retry_at_ms = now_ms + wait_ms;
     s_reconnect_scheduled = true;
     s_connect_in_progress = false;
@@ -117,7 +119,9 @@ static void on_mqtt_event(void *handler_args, esp_event_base_t base, int32_t eve
         case MQTT_EVENT_DISCONNECTED:
             s_connected = false;
             s_connect_in_progress = false;
-            schedule_reconnect();
+            if (!s_resetting) {
+                schedule_reconnect();
+            }
             ESP_LOGW(TAG, "MQTT disconnected");
             break;
 
@@ -159,6 +163,8 @@ esp_err_t gh_mqtt_init(const char *device_id, const char *broker_uri, gh_mqtt_co
         return ESP_ERR_INVALID_ARG;
     }
 
+    gh_mqtt_stop_reset();
+
     (void)snprintf(s_device_id, sizeof(s_device_id), "%s", device_id);
     (void)snprintf(s_broker_uri, sizeof(s_broker_uri), "%s", broker_uri);
     cfg.broker.address.uri = s_broker_uri;
@@ -194,6 +200,31 @@ esp_err_t gh_mqtt_start(void) {
 
     ESP_LOGI(TAG, "MQTT client start requested");
     return ESP_OK;
+}
+
+void gh_mqtt_stop_reset(void) {
+    s_resetting = true;
+
+    if (s_client != NULL) {
+        if (s_started) {
+            (void)esp_mqtt_client_stop(s_client);
+        }
+        (void)esp_mqtt_client_destroy(s_client);
+        s_client = NULL;
+    }
+
+    s_command_cb = NULL;
+    s_started = false;
+    s_connected = false;
+    s_reconnect_scheduled = false;
+    s_connect_in_progress = false;
+    s_bootstrap_failed = false;
+    s_retry_count = 0;
+    s_next_retry_at_ms = 0;
+    s_connect_started_at_ms = 0;
+    s_device_id[0] = '\0';
+    s_broker_uri[0] = '\0';
+    s_resetting = false;
 }
 
 void gh_mqtt_tick(bool wifi_connected) {

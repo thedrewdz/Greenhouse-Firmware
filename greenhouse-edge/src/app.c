@@ -26,9 +26,13 @@ static uint32_t s_message_id = 1U;
 static uint64_t s_next_heartbeat_at_us = 0ULL;
 static uint64_t s_heartbeat_interval_us = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
 static bool s_last_mqtt_connected;
+static bool s_first_heartbeat_published;
+static bool s_network_initialized;
 static bool s_mqtt_started;
 static bool s_provisioning_mode;
 static bool s_waiting_for_network_logged;
+
+static void on_provisioning_payload(const char *payload, gh_provisioning_status_t *out_status, void *ctx);
 
 static void read_device_id(char *device_id, size_t device_id_len) {
     uint8_t mac[6];
@@ -97,11 +101,119 @@ static void publish_heartbeat(void) {
     err = gh_mqtt_publish("gh/heartbeat", payload, 1, 0);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Heartbeat publish failed err=0x%x", (unsigned int)err);
+        if (!s_first_heartbeat_published) {
+            gh_mqtt_note_bootstrap_publish_failure();
+        }
     } else {
+        s_first_heartbeat_published = true;
         ESP_LOGI(TAG, "Published heartbeat to gh/heartbeat payload=%s", payload);
     }
 
     gh_codec_free_payload(payload);
+}
+
+static esp_err_t start_network_bootstrap(const gh_provisioning_config_t *provisioning_config) {
+    esp_err_t err;
+
+    if (!s_network_initialized) {
+        err = gh_network_init();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Network init failed err=0x%x", (unsigned int)err);
+            return err;
+        }
+        s_network_initialized = true;
+    }
+
+    s_heartbeat_interval_us = ((uint64_t)provisioning_config->heartbeat_interval_ms * 1000ULL);
+    s_first_heartbeat_published = false;
+    s_last_mqtt_connected = false;
+    s_mqtt_started = false;
+    s_waiting_for_network_logged = false;
+    s_next_heartbeat_at_us = esp_timer_get_time();
+
+    err = gh_network_start(provisioning_config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Network start failed err=0x%x", (unsigned int)err);
+        return err;
+    }
+
+    err = gh_mqtt_init(s_device_id, provisioning_config->mqtt_broker_uri, on_command_received);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "MQTT init failed err=0x%x", (unsigned int)err);
+        return err;
+    }
+
+    s_provisioning_mode = false;
+    return ESP_OK;
+}
+
+static void enter_provisioning_mode(void) {
+    esp_err_t err;
+
+    gh_mqtt_stop_reset();
+    if (s_network_initialized) {
+        gh_network_stop_reset();
+    }
+    s_mqtt_started = false;
+    s_last_mqtt_connected = false;
+    s_first_heartbeat_published = false;
+    s_waiting_for_network_logged = false;
+    s_provisioning_mode = true;
+    ESP_LOGI(TAG, "Entering BLE Provisioning Mode");
+    err = gh_ble_onboarding_start(s_device_id, on_provisioning_payload, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "BLE onboarding start failed err=0x%x", (unsigned int)err);
+    }
+}
+
+static void set_provisioning_status(
+    gh_provisioning_status_t *status,
+    gh_provisioning_status_code_t code,
+    const char *message) {
+    (void)memset(status, 0, sizeof(*status));
+    if (code == GH_PROVISIONING_STATUS_SUCCESS) {
+        (void)strcpy(status->result, "success");
+        status->error_code = GH_PROVISIONING_STATUS_SUCCESS;
+        return;
+    }
+
+    (void)strcpy(status->result, "error");
+    status->error_code = code;
+    if (message != NULL) {
+        (void)snprintf(status->error_message, sizeof(status->error_message), "%s", message);
+    }
+}
+
+static void on_provisioning_payload(const char *payload, gh_provisioning_status_t *out_status, void *ctx) {
+    gh_provisioning_payload_t provisioning_payload;
+    esp_err_t err;
+
+    (void)ctx;
+
+    if (!gh_codec_parse_provisioning_payload(payload, s_device_id, &provisioning_payload, out_status)) {
+        return;
+    }
+
+    err = gh_provisioning_config_save(&provisioning_payload.config);
+    if (err != ESP_OK) {
+        set_provisioning_status(
+            out_status,
+            GH_PROVISIONING_STATUS_INTERNAL_PERSISTENCE_ERROR,
+            "failed to persist provisioning data");
+        return;
+    }
+
+    err = start_network_bootstrap(&provisioning_payload.config);
+    if (err != ESP_OK) {
+        set_provisioning_status(
+            out_status,
+            GH_PROVISIONING_STATUS_INTERNAL_PERSISTENCE_ERROR,
+            "failed to start network bootstrap");
+        enter_provisioning_mode();
+        return;
+    }
+
+    set_provisioning_status(out_status, GH_PROVISIONING_STATUS_SUCCESS, NULL);
 }
 
 void gh_app_init(void) {
@@ -112,6 +224,8 @@ void gh_app_init(void) {
     s_next_heartbeat_at_us = esp_timer_get_time();
     s_heartbeat_interval_us = ((uint64_t)GH_HEARTBEAT_INTERVAL_MS * 1000ULL);
     s_last_mqtt_connected = false;
+    s_first_heartbeat_published = false;
+    s_network_initialized = false;
     s_mqtt_started = false;
     s_provisioning_mode = false;
     s_waiting_for_network_logged = false;
@@ -125,32 +239,14 @@ void gh_app_init(void) {
     }
 
     if (!gh_provisioning_config_load(&provisioning_config)) {
-        s_provisioning_mode = true;
         ESP_LOGI(TAG, "Provisioning data missing; entering BLE Provisioning Mode");
-        err = gh_ble_onboarding_start(s_device_id);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "BLE onboarding start failed err=0x%x", (unsigned int)err);
-        }
+        enter_provisioning_mode();
         return;
     }
 
-    s_heartbeat_interval_us = ((uint64_t)provisioning_config.heartbeat_interval_ms * 1000ULL);
-
-    err = gh_network_init();
+    err = start_network_bootstrap(&provisioning_config);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Network init failed err=0x%x", (unsigned int)err);
-        return;
-    }
-
-    err = gh_network_start(&provisioning_config);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Network start failed err=0x%x", (unsigned int)err);
-    }
-
-    err = gh_mqtt_init(s_device_id, provisioning_config.mqtt_broker_uri, on_command_received);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "MQTT init failed err=0x%x", (unsigned int)err);
-        return;
+        enter_provisioning_mode();
     }
 }
 
@@ -165,6 +261,11 @@ void gh_app_tick(void) {
     }
 
     gh_network_tick();
+    if (!s_first_heartbeat_published && gh_network_bootstrap_failed()) {
+        ESP_LOGW(TAG, "WiFi bootstrap retry budget exhausted before first heartbeat");
+        enter_provisioning_mode();
+        return;
+    }
 
     if (!s_mqtt_started) {
         if (!network_connected) {
@@ -184,6 +285,11 @@ void gh_app_tick(void) {
     }
 
     gh_mqtt_tick(network_connected);
+    if (!s_first_heartbeat_published && gh_mqtt_bootstrap_failed()) {
+        ESP_LOGW(TAG, "MQTT bootstrap retry budget exhausted before first heartbeat");
+        enter_provisioning_mode();
+        return;
+    }
 
     mqtt_connected = gh_mqtt_is_connected();
 

@@ -19,14 +19,19 @@ static gh_mqtt_command_cb_t s_command_cb;
 static bool s_started;
 static bool s_connected;
 static bool s_reconnect_scheduled;
+static bool s_connect_in_progress;
+static bool s_bootstrap_failed;
 static uint32_t s_retry_count;
 static uint64_t s_next_retry_at_ms;
+static uint64_t s_connect_started_at_ms;
 static char s_device_id[13];
 static char s_broker_uri[129];
 
 static uint32_t compute_backoff_ms(uint32_t retry_count) {
     uint32_t backoff = GH_MQTT_RETRY_BASE_MS;
     uint32_t i;
+    int32_t jitter_window;
+    int32_t jitter;
 
     for (i = 0; i < retry_count && backoff < GH_MQTT_RETRY_MAX_MS; ++i) {
         backoff *= 2U;
@@ -35,18 +40,32 @@ static uint32_t compute_backoff_ms(uint32_t retry_count) {
         }
     }
 
-    return backoff + (esp_random() % 300U);
+    jitter_window = (int32_t)(backoff / 5U);
+    jitter = (int32_t)(esp_random() % (uint32_t)((jitter_window * 2) + 1)) - jitter_window;
+    return (uint32_t)((int32_t)backoff + jitter);
 }
 
 static void schedule_reconnect(void) {
     const uint64_t now_ms = (uint64_t)(esp_timer_get_time() / 1000ULL);
     const uint32_t wait_ms = compute_backoff_ms(s_retry_count);
 
+    if (s_retry_count >= GH_BOOTSTRAP_RETRY_BUDGET) {
+        s_bootstrap_failed = true;
+        s_reconnect_scheduled = false;
+        s_connect_in_progress = false;
+        ESP_LOGW(TAG, "MQTT bootstrap retry budget exhausted");
+        return;
+    }
+
     s_next_retry_at_ms = now_ms + wait_ms;
     s_reconnect_scheduled = true;
-    s_retry_count++;
+    s_connect_in_progress = false;
 
-    ESP_LOGW(TAG, "MQTT reconnect scheduled in %lu ms (attempt=%lu)", (unsigned long)wait_ms, (unsigned long)s_retry_count);
+    ESP_LOGW(
+        TAG,
+        "MQTT reconnect scheduled in %lu ms (completed_attempts=%lu)",
+        (unsigned long)wait_ms,
+        (unsigned long)s_retry_count);
 }
 
 static char *copy_bounded(const char *src, int len) {
@@ -90,12 +109,14 @@ static void on_mqtt_event(void *handler_args, esp_event_base_t base, int32_t eve
             s_connected = true;
             s_retry_count = 0;
             s_reconnect_scheduled = false;
+            s_connect_in_progress = false;
             subscribe_command_topics();
             ESP_LOGI(TAG, "MQTT connected");
             break;
 
         case MQTT_EVENT_DISCONNECTED:
             s_connected = false;
+            s_connect_in_progress = false;
             schedule_reconnect();
             ESP_LOGW(TAG, "MQTT disconnected");
             break;
@@ -165,8 +186,11 @@ esp_err_t gh_mqtt_start(void) {
     ESP_ERROR_CHECK(esp_mqtt_client_start(s_client));
     s_started = true;
     s_reconnect_scheduled = false;
+    s_connect_in_progress = true;
+    s_connect_started_at_ms = (uint64_t)(esp_timer_get_time() / 1000ULL);
     s_next_retry_at_ms = 0;
-    s_retry_count = 0;
+    s_retry_count = 1;
+    s_bootstrap_failed = false;
 
     ESP_LOGI(TAG, "MQTT client start requested");
     return ESP_OK;
@@ -175,17 +199,30 @@ esp_err_t gh_mqtt_start(void) {
 void gh_mqtt_tick(bool wifi_connected) {
     const uint64_t now_ms = (uint64_t)(esp_timer_get_time() / 1000ULL);
 
-    if (!s_started || s_connected || !s_reconnect_scheduled || !wifi_connected) {
+    if (!s_started || s_connected || s_bootstrap_failed || !wifi_connected) {
         return;
     }
 
-    if (now_ms >= s_next_retry_at_ms) {
+    if (s_connect_in_progress) {
+        if ((now_ms - s_connect_started_at_ms) >= GH_MQTT_CONNECT_TIMEOUT_MS) {
+            ESP_LOGW(TAG, "MQTT connect attempt timed out");
+            s_connect_in_progress = false;
+            schedule_reconnect();
+        }
+        return;
+    }
+
+    if (s_reconnect_scheduled && now_ms >= s_next_retry_at_ms) {
         esp_err_t err = esp_mqtt_client_reconnect(s_client);
         if (err == ESP_OK) {
+            s_retry_count++;
             s_reconnect_scheduled = false;
+            s_connect_in_progress = true;
+            s_connect_started_at_ms = now_ms;
             ESP_LOGI(TAG, "MQTT reconnect attempt started");
         } else {
             ESP_LOGW(TAG, "MQTT reconnect call failed err=0x%x", (unsigned int)err);
+            s_retry_count++;
             schedule_reconnect();
         }
     }
@@ -193,6 +230,24 @@ void gh_mqtt_tick(bool wifi_connected) {
 
 bool gh_mqtt_is_connected(void) {
     return s_connected;
+}
+
+bool gh_mqtt_bootstrap_failed(void) {
+    return s_bootstrap_failed;
+}
+
+void gh_mqtt_note_bootstrap_publish_failure(void) {
+    if (s_bootstrap_failed) {
+        return;
+    }
+
+    s_connected = false;
+    s_connect_in_progress = false;
+    s_retry_count++;
+    if (s_client != NULL) {
+        (void)esp_mqtt_client_disconnect(s_client);
+    }
+    schedule_reconnect();
 }
 
 esp_err_t gh_mqtt_publish(const char *topic, const char *payload, int qos, int retain) {

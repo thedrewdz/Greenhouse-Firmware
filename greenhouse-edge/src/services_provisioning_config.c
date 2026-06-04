@@ -90,3 +90,42 @@ bool gh_provisioning_config_load(gh_provisioning_config_t *out_config) {
     ESP_LOGI(TAG, "Loaded provisioning config from NVS for SSID=%s", out_config->wifi_ssid);
     return true;
 }
+
+esp_err_t gh_provisioning_config_save(const gh_provisioning_config_t *config) {
+    nvs_handle_t handle;
+    esp_err_t err;
+
+    if (config == NULL || config->wifi_ssid[0] == '\0' || config->mqtt_broker_uri[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open provisioning config for write err=0x%x", (unsigned int)err);
+        return err;
+    }
+
+    err = nvs_set_str(handle, KEY_WIFI_SSID, config->wifi_ssid);
+    if (err == ESP_OK) {
+        err = nvs_set_str(handle, KEY_WIFI_PASSWORD, config->wifi_password);
+    }
+    if (err == ESP_OK) {
+        err = nvs_set_str(handle, KEY_MQTT_BROKER_URI, config->mqtt_broker_uri);
+    }
+    if (err == ESP_OK) {
+        err = nvs_set_u32(handle, KEY_HEARTBEAT_MS, config->heartbeat_interval_ms);
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to persist provisioning config err=0x%x", (unsigned int)err);
+        return err;
+    }
+
+    ESP_LOGI(TAG, "Persisted provisioning config for SSID=%s", config->wifi_ssid);
+    return ESP_OK;
+}

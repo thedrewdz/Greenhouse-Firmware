@@ -10,6 +10,7 @@ esp_err_t gh_network_init(void);
 esp_err_t gh_network_start(const gh_provisioning_config_t *config);
 void gh_network_tick(void);
 bool gh_network_is_connected(void);
+bool gh_network_bootstrap_failed(void);
 int gh_network_get_rssi(void);
 
 #endif

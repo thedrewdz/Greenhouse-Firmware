@@ -6,6 +6,13 @@
 - Implementation diff: `origin/main...HEAD` on branch `spec/edge-unit-onboarding`.
 - Existing tests: no repository test source files found; only generated `.pio` build output exists.
 - Local strategy reference: `docs/skills/esp-idf-testing-strategy.md`.
+- Review feedback artifacts: `.agent-output/specs/edge-unit-onboarding/review-report.md` and review-fix commit `346cd3c`.
+
+## Review Fix Re-Evaluation
+
+- Review finding 1, bootstrap retry backoff starts at 2s: addressed by computing retry delay from `s_retry_count - 1` when at least one failed attempt has completed. This aligns the intended five-attempt budget with four inter-attempt waits of approximately `1s`, `2s`, `4s`, and `8s`, subject to the existing plus/minus 20 percent jitter.
+- Review finding 2, re-entry to Provisioning Mode leaves WiFi/MQTT runtime state active: addressed at the implementation level. `enter_provisioning_mode()` now calls `gh_mqtt_stop_reset()` and `gh_network_stop_reset()` before advertising BLE, and `gh_mqtt_init()` recreates the MQTT client for a new Bootstrap MQTT Endpoint.
+- Test status for both fixes: build-verified and code-reviewed, but not behavior-verified by automated host tests or HIL timing tests.
 
 ## Acceptance Criteria Mapping
 
@@ -37,7 +44,7 @@
 
 - `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge`.
 - Result: passed.
-- Noted warning: PlatformIO board profile expects 4MB flash while detected flash is 2MB; linked firmware uses 1,163,349 bytes of a 2,031,616 byte app partition.
+- Noted warning: PlatformIO board profile expects 4MB flash while detected flash is 2MB; linked firmware uses 1,163,633 bytes of a 2,031,616 byte app partition.
 
 ## Coverage Gaps
 
@@ -52,7 +59,7 @@
 ## Residual Risks
 
 - A payload/client interoperability issue could remain hidden because BLE characteristic UUIDs, write mode expectations, MTU behavior, and notification subscription behavior are not yet covered by tests.
-- Retry exhaustion may be off by one or may re-enter Provisioning Mode while WiFi/MQTT clients remain active; this needs host-mock or HIL timing evidence.
+- Retry timing and reset/re-entry behavior now look correct in code, but remain unproven under asynchronous ESP-IDF WiFi/MQTT event ordering without host-mock or HIL timing evidence.
 - NVS multi-key commit behavior may be acceptable for Phase 1, but crash/power-loss consistency is not proven by this branch.
 - The first heartbeat path is only build-verified; it still needs a live broker assertion on `gh/heartbeat`.
 

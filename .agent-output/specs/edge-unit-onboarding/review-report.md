@@ -5,7 +5,7 @@
 - Canonical spec: `specs/edge-unit-onboarding/spec.md` from Greenhouse Documentation.
 - Canonical docs: `AGENTS.md`, `CONTEXT.md`, `architecture.md`, `device-model.md`, `mqtt-topics.md`, `vision.md`.
 - Local docs: `AGENTS.md`, `.github/copilot-instructions.md`, `docs/adr/0001-ble-first-onboarding.md`.
-- Code diff: `main...HEAD` on branch `spec/edge-unit-onboarding` at `2f59feb`.
+- Code diff: `main...HEAD` on branch `spec/edge-unit-onboarding` at `e55d865`.
 - Test artifacts: `.agent-output/specs/edge-unit-onboarding/test-gap-report.md`.
 - Verification commands:
   - `python -m unittest discover -s greenhouse-edge\tests -v`
@@ -13,26 +13,30 @@
 
 ## Blocking Findings
 
-1. Successful BLE provisioning can stop the onboarding service before the success status is delivered.
-   - Impacted files: `greenhouse-edge/src/app.c`, `greenhouse-edge/src/services_ble_onboarding.c`.
-   - Evidence: `on_provisioning_payload()` calls `gh_ble_onboarding_stop()` before writing the success result into `out_status`. The BLE write handler only calls `notify_status()` after the callback returns. Stopping onboarding disables advertising and stops active advertising, so a successful write can transition away from BLE before the Main Unit has a reliable read/notify opportunity for the required status response.
-   - Risk: violates the spec response contract requiring a success/error BLE status response. The Main Unit may see a write complete or disconnect without the canonical `{ result, error_code, error_message }` success payload, making onboarding completion ambiguous.
-   - Recommended fix: defer `gh_ble_onboarding_stop()` until after the status response has been set and delivered, or have the BLE service own the transition by notifying/read-stabilizing the status first and then asynchronously stopping advertising/session state.
+- None identified in this re-review.
 
-2. Provisioning persistence can partially overwrite the previous valid configuration before returning an error.
-   - Impacted file: `greenhouse-edge/src/services_provisioning_config.c`.
-   - Evidence: `gh_provisioning_config_save()` writes `wifi_ssid`, then `wifi_password`, then `mqtt_broker_uri`, then `heartbeat_interval_ms` into the existing namespace before `nvs_commit()`. If a later `nvs_set_*` call fails after one or more earlier calls succeeded, the function returns an error but has still staged changes against the same live keys.
-   - Risk: violates the spec requirement that persistence be one logical configuration update and that the Edge Unit retain the last known valid configuration on write failure. Depending on NVS behavior and failure point, a later boot can observe a mixed old/new WiFi or MQTT configuration.
-   - Recommended fix: write to a shadow namespace/record with a version or validity marker, commit only the complete candidate, then atomically promote/select it on load. At minimum, add a fake-NVS unit test that proves failed later writes cannot change the loaded config.
+## Prior Blocking Findings Re-Evaluated
+
+1. BLE success status delivery before onboarding stop: resolved.
+   - Evidence: `on_provisioning_payload()` no longer calls `gh_ble_onboarding_stop()` directly. The BLE write handler calls `notify_status()` before `gh_ble_onboarding_stop()` when the status is success.
+   - Impact: the app can set the canonical success status before the BLE service exits Provisioning Mode.
+
+2. Last-known-valid provisioning persistence on write failure: resolved at the code-review level.
+   - Evidence: `gh_provisioning_config_save()` writes the new candidate to the inactive NVS slot first, then promotes the candidate through `active_slot` metadata only after candidate commit succeeds. Legacy `gh_prov` loading remains as a fallback when no active-slot metadata exists.
+   - Impact: failed candidate writes or failed promotion should leave the previously active slot selected.
+
+3. Bootstrap retry schedule and clean re-entry: still resolved.
+   - Evidence: WiFi and MQTT backoff derive from completed failures, and `enter_provisioning_mode()` resets MQTT and WiFi runtime state before BLE advertising.
 
 ## Non-Blocking Findings
 
-- The retry backoff and clean re-entry findings from the prior review are addressed in the current branch. WiFi and MQTT now schedule from completed failures and reset runtime state before BLE advertising.
+- None identified.
 
 ## Architecture Boundary Concerns
 
 - No Main Unit UI, cloud-first, or desktop/server implementation details were introduced.
 - MQTT topic naming and JSON field casing remain aligned with canonical MQTT docs.
+- Codec/transport separation is preserved: JSON parsing/serialization remains in `codec_json`, while BLE/MQTT services stay transport-oriented.
 - BLE UUIDs remain a documentation coordination risk already captured in `doc-feedback.md`.
 
 ## Never Events (Auto-Blocking)
@@ -41,14 +45,20 @@
 
 ## Guardrail Update Required
 
-- Existing `doc-feedback.md` already captures missing Spec Control/status handling, BLE GATT UUID contract gaps, and NVS atomicity ambiguity. No additional guardrail item is required from this review.
+- Existing `doc-feedback.md` already captures missing Spec Control/status handling, BLE GATT UUID contract gaps, and NVS atomicity expectations. No additional guardrail item is required from this review.
 
 ## Test Gaps
 
-- The added Python tests are useful regression guards, but several are source-shape tests or a Python reimplementation of the parser rather than execution of firmware code.
-- No automated ESP-IDF/fake tests prove BLE success status delivery before stop/disconnect.
-- No fake-NVS or HIL tests prove last-known-valid retention on partial write failure.
-- No HIL smoke evidence confirms fresh-device BLE onboarding through first `gh/heartbeat` publish.
+- Host tests are passing and now guard the two prior review blockers, but several tests remain source-shape checks or a Python reimplementation of parser behavior rather than execution of firmware code.
+- No automated ESP-IDF/NimBLE test proves live BLE write/read/notify behavior, payload MTU behavior, or status delivery to a real client.
+- No fake-NVS failure-injection test proves last-known-valid retention at every candidate-write and active-slot promotion failure point.
+- No broker-backed HIL smoke evidence confirms fresh-device BLE onboarding through first `gh/heartbeat` publish.
+
+## Verification Performed
+
+- `python -m unittest discover -s greenhouse-edge\tests -v`: passed, `Ran 10 tests` and `OK`.
+- `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge`: passed.
+- Noted warning: PlatformIO still reports the pre-existing flash-size mismatch, expected 4MB and detected 2MB. Firmware links within the custom app partition.
 
 ## Documentation Feedback Items
 
@@ -56,14 +66,5 @@
 
 ## Recommended Next Handoff
 
-- Status recommendation: `ready-for-implementation`.
-- Next role: implementation agent to fix BLE status delivery ordering and NVS last-known-valid persistence, then test agent to add focused firmware/fake-service coverage and HIL onboarding smoke evidence.
-
-## Implementation Response
-
-- Date: 2026-06-04.
-- Blocking finding 1 remediation: implemented. BLE success handling now leaves the app callback responsible for validation, persistence, and bootstrap startup, while the BLE service publishes the status response before calling `gh_ble_onboarding_stop()` on success.
-- Blocking finding 2 remediation: implemented. Provisioning config persistence now writes a complete candidate to the inactive NVS slot and promotes it through active-slot metadata only after the candidate commit succeeds.
-- Regression tests added: `test_success_status_is_not_stopped_before_ble_notification` and `test_provisioning_persistence_uses_shadow_slot_promotion` in `greenhouse-edge/tests/test_onboarding_contract.py`.
-- Verification: `python -m unittest discover -s greenhouse-edge\tests -v` passed with 10 tests; `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` passed.
-- Residual risk: BLE GATT delivery and NVS failure retention are still source/contract guarded only in this repo; ESP-IDF fake-service tests or HIL smoke testing remain recommended for runtime proof.
+- Status recommendation: passed; ready for maintainer review/merge workflow.
+- Suggested hardening after merge: ESP-IDF fake-service tests for codec/NVS/retry failure injection plus one HIL smoke test covering BLE provisioning through first `gh/heartbeat`.

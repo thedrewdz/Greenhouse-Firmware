@@ -188,3 +188,55 @@ Prevents implementation agents from missing required local artifacts and ensures
 ### Final Doc Update
 
 Pending documentation repository update.
+
+## Item 5
+
+### Source
+
+- Repo: `esp32-main`
+- Branch: `spec/edge-unit-onboarding`
+- Commit or diff: local implementation diff
+- Agent role: Implementation Agent
+- Date: 2026-06-04
+
+### Finding
+
+The implementation-agent skill does not currently instruct agents to create and switch to a spec branch before starting implementation work for a new spec. In this session, implementation began on `main` and was moved to `spec/edge-unit-onboarding` only after the user caught it.
+
+### Impact
+
+Implementation agents may accidentally leave feature work staged or committed on `main`, making it harder to produce a proper pull request, review spec-scoped changes, and avoid mixing unrelated work. Agents also need guidance for the case where prior work for the same spec already exists on a branch.
+
+### Affected Docs
+
+- `skills/implementation-agent-skill.md`
+
+### Recommended Documentation Change
+
+Update the implementation-agent skill workflow to add an early branch gate before code changes. Suggested wording:
+
+```md
+Before commencing implementation work, inspect the current branch and existing local/remote branches for the target spec.
+
+If not already on a suitable spec branch, create and switch to `spec/<spec-name>` before editing files.
+
+If `spec/<spec-name>` already exists and contains prior work for the same spec, decide whether to reuse it or create an incremental branch such as `spec/<spec-name>-2`, `spec/<spec-name>-3`, etc. Reuse the existing branch when continuing the same implementation stream. Create an incremental branch when preserving prior work separately is safer for review or when the existing branch has diverged.
+
+Record the chosen branch in `.agent-output/specs/<spec-name>/implementation-plan.md`.
+```
+
+Also add a final-gate check requiring the agent to verify the current branch is not `main` before committing implementation work, unless the user explicitly requested work on `main`.
+
+### Prevents
+
+Prevents implementation work from starting on `main` by accident and gives agents a repeatable policy for reusing or incrementing spec branches when prior work already exists.
+
+### Disposition
+
+- [ ] Accepted
+- [ ] Rejected
+- [x] Deferred
+
+### Final Doc Update
+
+Pending documentation repository update.

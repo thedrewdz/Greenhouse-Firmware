@@ -56,6 +56,13 @@
 - Result after review remediation: passed, `Ran 10 tests` and `OK`.
 - Noted warning: PlatformIO board profile expects 4MB flash while detected flash is 2MB; linked firmware uses 1,163,633 bytes of a 2,031,616 byte app partition.
 
+## Gate Decision
+
+- Status recommendation: passed.
+- Decision date: 2026-06-04.
+- Basis: host contract tests and PlatformIO firmware build passed after third-round remediation, and the requester explicitly accepted the remaining runtime evidence gaps as follow-up work only if failures become evident.
+- Runtime evidence note: BLE HIL, fake-NVS failure injection, and broker-backed first-heartbeat smoke testing remain useful hardening tasks, but they are no longer blocking this spec gate.
+
 ## Code Review Remediation Coverage
 
 - BLE status delivery ordering: partially mitigated by host source-regression test. The test verifies `on_provisioning_payload()` does not stop BLE directly and that `services_ble_onboarding.c` calls `notify_status()` before stopping onboarding on success.
@@ -81,6 +88,6 @@
 
 ## Recommended Next Handoff
 
-- Status recommendation: blocked for `ready-for-review` until critical acceptance criteria have test evidence.
-- Next role: implementation/test agent to add a minimal ESP-IDF Unity or host-side test harness for codec and retry policy, then run a small HIL onboarding smoke test.
+- Status recommendation: passed; ready for review/merge workflow.
+- Next role: reviewer/maintainer to proceed with normal branch review and integration.
 - Documentation follow-up: update canonical Spec Control handling so downstream agents can record `test-in-progress`, `ready-for-review`, or `blocked` transitions without modifying the documentation repository directly.

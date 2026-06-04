@@ -117,7 +117,7 @@ The spec requires persistence to be applied as one logical configuration update 
 
 ### Impact
 
-Firmware implemented one logical update by writing all keys and committing once. This is likely sufficient for Phase 1, but the exact crash-consistency expectation is not explicit.
+Firmware originally implemented one logical update by writing all keys and committing once. Review feedback required stronger last-known-valid behavior, so the local implementation now uses shadow NVS slots; the exact canonical expectation is still not explicit.
 
 ### Affected Docs
 
@@ -139,7 +139,7 @@ Prevents reviewers and test agents from applying different expectations for NVS 
 
 ### Final Doc Update
 
-Pending documentation repository update.
+Pending documentation repository update. Local firmware now uses shadow NVS slots and active-slot metadata to satisfy last-known-valid retention without waiting for canonical NVS atomicity clarification.
 
 ## Item 4
 

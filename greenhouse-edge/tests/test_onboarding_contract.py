@@ -129,6 +129,33 @@ class OnboardingRetryPolicyTests(unittest.TestCase):
 
         self.assertLess(reset_call, client_init)
 
+    def test_success_status_is_not_stopped_before_ble_notification(self) -> None:
+        app_source = read_source("greenhouse-edge/src/app.c")
+        callback_start = app_source.index("static void on_provisioning_payload")
+        callback_end = app_source.index("void gh_app_init", callback_start)
+        callback_body = app_source[callback_start:callback_end]
+        ble_source = read_source("greenhouse-edge/src/services_ble_onboarding.c")
+        access_start = ble_source.index("static int on_gatt_access")
+        handled_log = ble_source.index("BLE provisioning payload handled", access_start)
+        notify_call = ble_source.index("notify_status();", handled_log)
+        stop_call = ble_source.index("gh_ble_onboarding_stop();", notify_call)
+
+        self.assertNotIn("gh_ble_onboarding_stop();", callback_body)
+        self.assertLess(notify_call, stop_call)
+
+    def test_provisioning_persistence_uses_shadow_slot_promotion(self) -> None:
+        provisioning_source = read_source("greenhouse-edge/src/services_provisioning_config.c")
+        save_start = provisioning_source.index("esp_err_t gh_provisioning_config_save")
+        save_body = provisioning_source[save_start:]
+        candidate_write = provisioning_source.index("save_to_namespace(slot_namespace(candidate_slot), config)", save_start)
+        promotion = provisioning_source.index("promote_active_slot(candidate_slot)", save_start)
+
+        self.assertIn("KEY_ACTIVE_SLOT", provisioning_source)
+        self.assertIn("NVS_SLOT_A_NAMESPACE", provisioning_source)
+        self.assertIn("NVS_SLOT_B_NAMESPACE", provisioning_source)
+        self.assertLess(candidate_write, promotion)
+        self.assertNotIn("nvs_set_str(handle, KEY_WIFI_SSID", save_body)
+
 
 class ProvisioningPayloadContractTests(unittest.TestCase):
     def payload(self, **overrides: object) -> str:

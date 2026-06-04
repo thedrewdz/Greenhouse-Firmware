@@ -58,3 +58,12 @@
 
 - Status recommendation: `ready-for-implementation`.
 - Next role: implementation agent to fix BLE status delivery ordering and NVS last-known-valid persistence, then test agent to add focused firmware/fake-service coverage and HIL onboarding smoke evidence.
+
+## Implementation Response
+
+- Date: 2026-06-04.
+- Blocking finding 1 remediation: implemented. BLE success handling now leaves the app callback responsible for validation, persistence, and bootstrap startup, while the BLE service publishes the status response before calling `gh_ble_onboarding_stop()` on success.
+- Blocking finding 2 remediation: implemented. Provisioning config persistence now writes a complete candidate to the inactive NVS slot and promotes it through active-slot metadata only after the candidate commit succeeds.
+- Regression tests added: `test_success_status_is_not_stopped_before_ble_notification` and `test_provisioning_persistence_uses_shadow_slot_promotion` in `greenhouse-edge/tests/test_onboarding_contract.py`.
+- Verification: `python -m unittest discover -s greenhouse-edge\tests -v` passed with 10 tests; `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` passed.
+- Residual risk: BLE GATT delivery and NVS failure retention are still source/contract guarded only in this repo; ESP-IDF fake-service tests or HIL smoke testing remain recommended for runtime proof.

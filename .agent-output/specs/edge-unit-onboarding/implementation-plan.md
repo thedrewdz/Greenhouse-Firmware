@@ -82,3 +82,14 @@
 - PlatformIO still reports the pre-existing flash-size warning: board profile expects 4MB and detects 2MB; the custom partition table remains compatible with the detected 2MB flash.
 - No host/unit test harness exists in this repository for BLE GATT, NVS, live WiFi, or live MQTT service behavior, so those findings remain HIL or ESP-IDF fake-service test work.
 - Spec status was not updated because the fetched canonical spec does not include a Spec Control block in the implementation repository; this is captured in `doc-feedback.md`.
+
+## Code Review Remediation Pass
+
+- Branch gate: confirmed current branch remains `spec/edge-unit-onboarding`.
+- Blocking review finding 1 addressed: `on_provisioning_payload()` no longer stops BLE before returning the success status. The BLE onboarding service now calls `notify_status()` first and only stops advertising after the success status is available to the active connection.
+- Blocking review finding 2 addressed: provisioning persistence now uses active-slot metadata plus shadow NVS namespaces (`gh_prov_a` and `gh_prov_b`). A new payload is written and committed to the inactive slot first, then promoted by updating `active_slot`; failed candidate writes or failed promotion leave the previously active slot selected.
+- Backward compatibility: boot-time load still falls back to the legacy `gh_prov` namespace when no active-slot metadata exists.
+- Test update: added host regression checks for BLE success notification-before-stop ordering and shadow-slot NVS promotion.
+- Verification update: `python -m unittest discover -s greenhouse-edge\tests -v` completed with `Ran 10 tests` and `OK`.
+- Firmware build update: `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge` completed with `[SUCCESS]`.
+- PlatformIO still reports the pre-existing flash-size warning: board profile expects 4MB and detects 2MB; the linked firmware remains within the custom 2MB-compatible app partition.

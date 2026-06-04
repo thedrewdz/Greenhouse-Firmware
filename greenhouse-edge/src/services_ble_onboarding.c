@@ -152,6 +152,9 @@ static int on_gatt_access(uint16_t conn_handle, uint16_t attr_handle, struct ble
     free(payload);
     ESP_LOGI(TAG, "BLE provisioning payload handled result=%s error=%d", s_last_status.result, (int)s_last_status.error_code);
     notify_status();
+    if (s_last_status.error_code == GH_PROVISIONING_STATUS_SUCCESS) {
+        gh_ble_onboarding_stop();
+    }
     return 0;
 }
 

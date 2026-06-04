@@ -203,8 +203,6 @@ static void on_provisioning_payload(const char *payload, gh_provisioning_status_
         return;
     }
 
-    gh_ble_onboarding_stop();
-
     err = start_network_bootstrap(&provisioning_payload.config);
     if (err != ESP_OK) {
         set_provisioning_status(

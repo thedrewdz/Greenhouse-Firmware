@@ -53,8 +53,14 @@
 - `C:\Users\Andrew\.platformio\penv\Scripts\pio.exe run` from `greenhouse-edge`.
 - Result: passed.
 - `python -m unittest discover -s greenhouse-edge\tests -v` from repository root.
-- Result: passed, `Ran 8 tests` and `OK`.
+- Result after review remediation: passed, `Ran 10 tests` and `OK`.
 - Noted warning: PlatformIO board profile expects 4MB flash while detected flash is 2MB; linked firmware uses 1,163,633 bytes of a 2,031,616 byte app partition.
+
+## Code Review Remediation Coverage
+
+- BLE status delivery ordering: partially mitigated by host source-regression test. The test verifies `on_provisioning_payload()` does not stop BLE directly and that `services_ble_onboarding.c` calls `notify_status()` before stopping onboarding on success.
+- NVS last-known-valid retention: partially mitigated by host source-regression test. The test verifies the save path uses inactive-slot candidate write before active-slot promotion and no longer writes live keys directly inside `gh_provisioning_config_save()`.
+- Runtime proof still needed: fake-NVS tests should inject failures at each candidate write and metadata promotion point; BLE HIL should confirm write response, status read/notify, and first heartbeat publish through a broker.
 
 ## Coverage Gaps
 

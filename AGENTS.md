@@ -50,7 +50,7 @@ If guidance conflicts, follow the highest-precedence source.
 - Every new issue is added automatically to the central "Greenhouse Delivery" project board; do not rely on manual board adds.
 - Prioritization is by manual rank on the board (top = next); the Priority field is severity metadata. Leave ranking to triage; set the work type.
 - If you discover new work mid-task, file a follow-up issue rather than silently expanding scope.
-- See docs/work-item-tracking.md for the filing recipe and the board model.
+- The canonical work-item-tracking process lives in the Greenhouse Documentation repository (work-item-tracking.md); docs/work-item-tracking.md is a local pointer with the filing recipe and board model.
 
 ## Coding Standards
 

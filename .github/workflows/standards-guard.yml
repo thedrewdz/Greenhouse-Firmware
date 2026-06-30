@@ -1,0 +1,37 @@
+name: standards-guard
+
+# Ratchet that keeps firmware from drifting further from the documented standards
+# (AGENTS.md + docs/skills/*). It does not fix existing debt; it stops new debt.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  no-new-c-in-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block new .c files in firmware src (Option A requires C++ for app/service/device layers)
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          added=$(git diff --diff-filter=A --name-only "$base" "$head" \
+            | grep -E '^greenhouse-edge/src/.*\.c$' || true)
+          if [ -n "$added" ]; then
+            echo "::error::New .c file(s) added under greenhouse-edge/src/. Per AGENTS.md (Option A), the application/service/device-abstraction layers must be C++ (.cpp/.hpp). Existing .c files are migrated under WI-3; do not add new ones."
+            echo "$added"
+            exit 1
+          fi
+          echo "OK: no new .c files added under greenhouse-edge/src/"
+
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run host contract tests
+        run: python -m unittest discover -s greenhouse-edge/tests -v

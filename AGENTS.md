@@ -43,6 +43,15 @@ If guidance conflicts, follow the highest-precedence source.
 	3. Keep local ADRs focused on repository-specific decisions that do not belong in shared canonical docs.
 	4. If canonical and local guidance differ, follow canonical guidance and update or scope the ADR accordingly.
 
+## Work Item Tracking
+
+- All trackable work in this repository — bugs, features, updates, tech-debt, and standards gaps — must be captured as a GitHub issue. One work item = one issue. Do not leave trackable work in chat, commit messages, or local docs only.
+- File the issue in this repository before or as you start non-trivial work, and apply a type label (`bug`, `enhancement`, `tech-debt`, `standards`).
+- Every new issue is added automatically to the central "Greenhouse Delivery" project board; do not rely on manual board adds.
+- Prioritization is by manual rank on the board (top = next); the Priority field is severity metadata. Leave ranking to triage; set the work type.
+- If you discover new work mid-task, file a follow-up issue rather than silently expanding scope.
+- See docs/work-item-tracking.md for the filing recipe and the board model.
+
 ## Coding Standards
 
 - Use object-oriented design with clear module boundaries.

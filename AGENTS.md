@@ -46,6 +46,7 @@ If guidance conflicts, follow the highest-precedence source.
 ## Coding Standards
 
 - Use object-oriented design with clear module boundaries.
+- Apply language pragmatically by layer: C++ for the application, service, and device-abstraction layers; C is acceptable for low-level drivers and the HAL. At a C boundary, preserve OO discipline with opaque structs and small interfaces (see docs/skills/embedded-oo-coding-standards.md).
 - Program to small interfaces and use dependency injection when a dependency crosses a module or hardware boundary.
 - Keep declarations in headers and implementations in source files.
 - C++ files: .hpp or .h declarations with .cpp implementations.

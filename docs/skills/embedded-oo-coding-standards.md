@@ -10,6 +10,16 @@ Ensure coding agents use object-oriented design patterns that improve maintainab
 - Refactoring procedural code into cohesive components.
 - Reviewing pull requests for architecture and code quality.
 
+## Language Boundary (C / C++)
+
+This repository is pragmatic about language by layer:
+
+- Use C++ for the application, service, and device-abstraction layers, where classes, small interfaces, and dependency injection carry their weight.
+- C is acceptable for low-level drivers and the HAL, where a C-style API is clearer or matches an ESP-IDF driver.
+- "Object-oriented" here means the discipline, not the keyword. At a C boundary, express it with opaque structs plus a small function-pointer table (or a clear ownership/handle pattern), so the layer above still programs to a small interface and can be tested with a mock.
+- Keep the boundary explicit: a C driver exposes a narrow header; the C++ layer wraps it behind the capability interface rather than letting C structs leak upward.
+- Apply the file conventions accordingly (`.hpp`/`.cpp` for C++, `.h`/`.c` for C), per `esp-idf-firmware-practices.md`.
+
 ## Core OO Rules
 
 - One class or module should have one primary responsibility.

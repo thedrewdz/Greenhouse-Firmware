@@ -20,6 +20,9 @@ Load only the pack that matches the current task. Do not read all packs up front
 |---|---|
 | `esp32-firmware-architecture.md` | Creating firmware modules, separating hardware from logic, or designing startup/runtime/fault flows. |
 | `embedded-oo-coding-standards.md` | Writing or refactoring C/C++ modules, or reviewing code for design and quality. |
+| `esp32-application-state-model.md` | Designing the top-level lifecycle state machine, reconciling subsystem state, or projecting state into the heartbeat. |
+| `esp32-peripheral-registry-extensibility.md` | Adding support for a new peripheral type, or removing type-specific branches from the application layer. |
+| `embedded-resource-budgets.md` | Judging memory/flash/stack impact, choosing static vs dynamic allocation, or checking a design for bloat/over-engineering. |
 | `esp-idf-firmware-practices.md` | Creating/refactoring ESP-IDF components, tasks, drivers, or defining file structure. |
 | `esp-idf-testing-strategy.md` | Adding tests, or changing command/telemetry/heartbeat, I2C, WiFi, MQTT, or task logic. |
 | `esp32-i2c-bus-reliability.md` | Building I2C discovery/slot probing, adding module drivers, or debugging bus faults. |

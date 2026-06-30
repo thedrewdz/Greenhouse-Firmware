@@ -67,7 +67,10 @@ Load only the matching pack, not all of them.
 Available skill packs:
 
 - `docs/skills/esp32-firmware-architecture.md` - firmware layering, testable interfaces, startup/runtime/fault flows, non-blocking scheduling.
-- `docs/skills/embedded-oo-coding-standards.md` - object-oriented design, small interfaces, hardware abstraction, testability for C/C++ firmware.
+- `docs/skills/embedded-oo-coding-standards.md` - object-oriented design, small interfaces, hardware abstraction, testability, and the C/C++ layer boundary for firmware.
+- `docs/skills/esp32-application-state-model.md` - the unified Edge Unit lifecycle state machine, subsystem-state reconciliation, runtime-vs-persisted state, and heartbeat projection.
+- `docs/skills/esp32-peripheral-registry-extensibility.md` - capability-based device-abstraction layer: a registry/factory so new peripheral types are added without editing central logic.
+- `docs/skills/embedded-resource-budgets.md` - RAM/flash/stack/heap budgets, allocation discipline, abstraction-cost trade-offs, and avoiding bloat.
 - `docs/skills/esp-idf-firmware-practices.md` - ESP-IDF component structure, FreeRTOS-safe concurrency, `esp_err_t` handling, build/config rules.
 - `docs/skills/esp-idf-testing-strategy.md` - layered testing: Unity unit tests, host-side mock tests, and hardware-in-loop smoke validation.
 - `docs/skills/esp32-i2c-bus-reliability.md` - I2C discovery, bounded retries, per-slot fault isolation, and bus recovery.

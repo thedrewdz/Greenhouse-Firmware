@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
+#include "retry_backoff.h"
 #include "runtime_config.h"
 
 static const char *TAG = "gh_network";
@@ -28,21 +29,8 @@ static uint64_t s_next_retry_at_ms;
 static uint64_t s_connect_started_at_ms;
 
 static uint32_t compute_backoff_ms(uint32_t retry_count) {
-    uint32_t backoff = GH_WIFI_RETRY_BASE_MS;
-    uint32_t i;
-    int32_t jitter_window;
-    int32_t jitter;
-
-    for (i = 0; i < retry_count && backoff < GH_WIFI_RETRY_MAX_MS; ++i) {
-        backoff *= 2U;
-        if (backoff > GH_WIFI_RETRY_MAX_MS) {
-            backoff = GH_WIFI_RETRY_MAX_MS;
-        }
-    }
-
-    jitter_window = (int32_t)(backoff / 5U);
-    jitter = (int32_t)(esp_random() % (uint32_t)((jitter_window * 2) + 1)) - jitter_window;
-    return (uint32_t)((int32_t)backoff + jitter);
+    uint32_t backoff = gh_retry_backoff_base_ms(GH_WIFI_RETRY_BASE_MS, GH_WIFI_RETRY_MAX_MS, retry_count);
+    return gh_retry_backoff_apply_jitter(backoff, esp_random());
 }
 
 static void schedule_connect_retry(void) {

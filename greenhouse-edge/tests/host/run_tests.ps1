@@ -49,19 +49,30 @@ Write-Host "Using MSVC env: $vcvars"
 
 # --- Sources & include paths --------------------------------------------
 $srcs = @(
+    # Real firmware under test
     'src\codec_json.c',
     'src\retry_backoff.c',
+    'src\services_mqtt.c',
+    'src\services_network.c',
+    'src\services_provisioning_config.c',
+    # Vendored deps + fake ESP-IDF layer
     'tests\host\vendor\cjson\cJSON.c',
     'tests\host\vendor\unity\unity.c',
+    'tests\host\fakes\fake_esp_idf.c',
+    # Test suites
     'tests\host\src\test_main.c',
     'tests\host\src\test_codec_provisioning.c',
     'tests\host\src\test_codec_serialization.c',
-    'tests\host\src\test_retry_backoff.c'
+    'tests\host\src\test_retry_backoff.c',
+    'tests\host\src\test_service_mqtt.c',
+    'tests\host\src\test_service_network.c',
+    'tests\host\src\test_service_provisioning_nvs.c'
 ) | ForEach-Object { '"' + (Join-Path $repo $_) + '"' }
 
 $includes = @(
     'src',
     'tests\host\shims',
+    'tests\host\fakes',
     'tests\host\vendor\cjson',
     'tests\host\vendor\unity'
 ) | ForEach-Object { '/I"' + (Join-Path $repo $_) + '"' }

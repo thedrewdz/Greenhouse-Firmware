@@ -1,7 +1,12 @@
 # BLE-first onboarding for Edge Units
 
-Status: accepted
+Status: accepted  
 Date: 2026-06-02
+
+> **Superseded by:** This decision has been consolidated into the documentation repository as
+> [ADR 0004 — BLE-first onboarding](https://github.com/thedrewdz/Greenhouse-Documentation/blob/main/adr/0004-ble-first-onboarding.md)
+> with updated consequences reflecting WiFi credential storage on the Main Unit and automatic
+> `mqtt_broker_uri` derivation. Read the documentation ADR as the canonical record.
 
 Phase 1 onboarding for new Edge Units will default to BLE, with wired onboarding retained only as an optional fallback for recovery and manufacturing workflows.
 

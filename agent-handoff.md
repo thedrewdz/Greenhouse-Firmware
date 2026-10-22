@@ -8,15 +8,12 @@ Durable policy, canonical context, architecture, MQTT contracts, ADRs, and skill
 
 ## Current Workspace State
 
-- Path: `D:\Code\Greenhouse\esp32-main`
+- Path: `D:\Code\Greenhouse\edge` (remote `thedrewdz/Greenhouse-Firmware`)
 - Repository purpose: ESP32 Edge Unit firmware.
 - Current branch: `main`
-- Last completed commit before this handoff update: `cc43de4 Move durable docs to documentation repo`
-- Local documentation has been removed from this repository except:
-  - `README.md`
-  - `AGENTS.md`
-  - `.github/copilot-instructions.md`
-  - `agent-handoff.md`
+- Workstation rebuilt 2026-10-22 (Windows reinstall, D: drive restored). PlatformIO platform pinned to `espressif32@6.6.0` (ESP-IDF 5.2.1) under issue #24; ESP-IDF upgrade tracked in #25.
+- Board: ESP32 on `COM3` via CH340 USB-serial.
+- Work items are tracked as GitHub issues (see `docs/work-item-tracking.md`); the progress snapshot below predates them and may be stale.
 
 ## Current Progress Snapshot
 
